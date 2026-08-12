@@ -37,6 +37,13 @@ struct Setup
 			std::cerr<<"Failure: error during SFML OpenGL Activation."<<std::endl;
 			exit(1);
 		}
+
+		// window info
+		sf::ContextSettings gotten = window->getSettings();
+		std::cout<<"depth bits: "<<gotten.depthBits<<std::endl;
+		std::cout<<"stencil bits: " << gotten.stencilBits<<std::endl;
+		std::cout<<"antialiasing level: "<<gotten.antiAliasingLevel<<std::endl;
+		std::cout<<"SFML GL version: "<<gotten.majorVersion<<"."<<gotten.minorVersion<<std::endl;
 		
 		// glad info?
 		int version=gladLoadGL(sf::Context::getFunction);
@@ -57,7 +64,7 @@ struct Scene
 	std::vector<float> faces;
 	GLuint vbo;
 	GLuint vao;
-	int facesQuant;
+	int verticesCount;
 
 	Scene(std::string& path)
 	{
@@ -144,7 +151,7 @@ struct Scene
 			}
 		}
 		// save vertex quantity
-		facesQuant=faces.size()/8;
+		verticesCount=faces.size()/8;
 
 		//VBO
 		vbo=0;
@@ -262,7 +269,7 @@ struct Shaders
 void draw (Scene& scene, Shaders& shaders)
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glDrawArrays(GL_TRIANGLES, 0, scene.facesQuant);
+	glDrawArrays(GL_TRIANGLES, 0, scene.verticesCount);
 }
 
 

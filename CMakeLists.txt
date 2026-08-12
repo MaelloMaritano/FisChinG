@@ -42,3 +42,6 @@ endif()
 
 add_executable(Tappa01 Tappa01/main.cpp)
 target_link_libraries(Tappa01 PRIVATE common SFML::Window SFML::Graphics OpenGL::GL glm::glm-header-only)
+
+add_executable(Tappa02 Tappa02/main.cpp)
+target_link_libraries(Tappa02 PRIVATE common SFML::Window SFML::Graphics SFML::Audio OpenGL::GL glm::glm-header-only)
