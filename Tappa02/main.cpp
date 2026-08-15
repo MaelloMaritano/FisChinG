@@ -36,7 +36,7 @@ class Setup
 			settings.minorVersion=1;
 
 			// window
-			window=new sf::Window (sf::VideoMode({800, 600}), "New Window", sf::Style::Default, sf::State::Windowed, settings);
+			window=new sf::Window(sf::VideoMode({800, 600}), "New Window", sf::Style::Default, sf::State::Windowed, settings);
 			window->setVerticalSyncEnabled (true);
 			if(!window->setActive(true))
 			{
@@ -51,7 +51,7 @@ class Setup
 			std::cout<<"antialiasing level: "<<gotten.antiAliasingLevel<<std::endl;
 			std::cout<<"SFML GL version: "<<gotten.majorVersion<<"."<<gotten.minorVersion<<std::endl;
 			
-			// glad info?
+			// glad info
 			int version=gladLoadGL(sf::Context::getFunction);
 			if(!version)
 			{
@@ -70,25 +70,61 @@ class Setup
 class Scene
 {
 	public:
-		
+		std::vector<Model*> models;
+	private:
+		GLint modelLoc;
+		GLint mvpLoc;
 
+	public:
+		Scene(Shaders& shaders)
+		{
+			modelLoc=glGetUniformLocation(shaders.program, "model");
+			mvpLoc=glGetUniformLocation(shaders.program, "mvp");
+		}
+
+		void addModel(std:: string objPath, std::string texturePath)
+		{
+			models.push_back(new Model(objPath, texturePath));
+		}
+
+		void draw()
+		{
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			
+			for(Model* model:models)
+			{
+				glm::mat4 mat=glm::mat4(1.0f);
+				glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mat));
+
+				model->draw();
+			}
+		}
+		~Scene()
+		{
+			for(Model* model:models) delete model;
+			models.clear();
+		}
 };
 
 
 int main()
 {
+	// setup
 	Setup setup;
 	sf::Window& window=*setup.window;
 
-	std::string modelPath="resources/fish.obj";
-	std::string texturePath="resources/fish_texture.png";
-	Model fish(modelPath, texturePath);
+	// shaders
+	Shaders shaders("Tappa02/vertex.vert", "Tappa02/fragment.frag");
+	glUseProgram(shaders.program);
 
-	Shaders shaders ("Tappa02/vertex.vert", "Tappa02/fragment.frag");
+	// creating the scene
+	Scene scene(shaders);
+	scene.addModel("resources/fish.obj", "resources/fish.png");
+	scene.addModel("resources/fish.obj", "resources/fish.png");
 
 	glEnable(GL_DEPTH_TEST);
 
-	float rad=0;
+	// main loop
 	bool running=true;
 	while(running)
 	{
@@ -100,18 +136,9 @@ int main()
 				glViewport (0, 0, resized->size.x, resized->size.y);
 		}
 
-		glUseProgram (shaders.program);
-
-		// model
-		glm::mat4 model=glm::mat4(1.0f);
-        model=glm::rotate(model, glm::radians(rad++), glm::vec3(0.0f, 1.0f, 0.0f));
-        GLint mvpLoc=glGetUniformLocation(shaders.program, "mvp");
-        glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(model));
-
-		fish.draw();
-
+		// drawing and displaying the scene
+		scene.draw();
 		window.display();
 	}
-
 	return 0;
 }

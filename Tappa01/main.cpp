@@ -1,4 +1,4 @@
-#define GLAD_GL_IMPLEMENTATION // Necessary for the header-only version.
+#define GLAD_GL_IMPLEMENTATION
 #include "../glad/gl.h"
 
 #include <SFML/Window.hpp>
@@ -30,7 +30,7 @@ struct Setup
 		settings.minorVersion=1;
 
 		// window
-		window=new sf::Window (sf::VideoMode({800, 600}), "New Window", sf::Style::Default, sf::State::Windowed, settings);
+		window=new sf::Window(sf::VideoMode({800, 600}), "New Window", sf::Style::Default, sf::State::Windowed, settings);
 		window->setVerticalSyncEnabled (true);
 		if(!window->setActive(true))
 		{
@@ -45,7 +45,7 @@ struct Setup
 		std::cout<<"antialiasing level: "<<gotten.antiAliasingLevel<<std::endl;
 		std::cout<<"SFML GL version: "<<gotten.majorVersion<<"."<<gotten.minorVersion<<std::endl;
 		
-		// glad info?
+		// glad info
 		int version=gladLoadGL(sf::Context::getFunction);
 		if(!version)
 		{
@@ -72,7 +72,7 @@ struct Scene
 
 		// opening file
 		std::ifstream file(path);
-		if (!file.is_open())
+		if(!file.is_open())
 		{
 			std::cerr<<"Failure: could not open "<<path<<"."<<std::endl;
 			exit(1);
@@ -85,7 +85,7 @@ struct Scene
 
 		// parsing lines
 		std::string line;
-		while (std::getline(file, line))
+		while(std::getline(file, line))
 		{
 			std::stringstream stream(line);
 			std::string prefix;
@@ -102,7 +102,7 @@ struct Scene
 			}
 
 			// normals
-			if(prefix=="vn")
+			else if(prefix=="vn")
 			{
 				float nx, ny, nz;
 				stream>>nx>>ny>>nz;
@@ -112,7 +112,7 @@ struct Scene
 			}
 
 			// texture coordinates
-			if(prefix=="vt")
+			else if(prefix=="vt")
 			{
 				float u, v;
 				stream>>u>>v;
@@ -246,27 +246,30 @@ struct Shaders
 			"  frag_colour=vec4(tex_color.rgb*lighting, tex_color.a);"
 			"}";
 
-		GLuint vertex = glCreateShader (GL_VERTEX_SHADER);
-		glShaderSource (vertex, 1, &vertex_source, NULL);
-		glCompileShader (vertex);
+		GLuint vertex=glCreateShader(GL_VERTEX_SHADER);
+		glShaderSource(vertex, 1, &vertex_source, NULL);
+		glCompileShader(vertex);
 
-		GLuint fragment = glCreateShader (GL_FRAGMENT_SHADER);
-		glShaderSource (fragment, 1, &fragment_source, NULL);
-		glCompileShader (fragment);
+		GLuint fragment=glCreateShader(GL_FRAGMENT_SHADER);
+		glShaderSource(fragment, 1, &fragment_source, NULL);
+		glCompileShader(fragment);
 
-		program = glCreateProgram();
-		glAttachShader (program, fragment);
-		glAttachShader (program, vertex);
-		glLinkProgram (program);
+		program=glCreateProgram();
+		glAttachShader(program, fragment);
+		glAttachShader(program, vertex);
+		glLinkProgram(program);
 
-		glDeleteShader (vertex);
-		glDeleteShader (fragment);
+		glDeleteShader(vertex);
+		glDeleteShader(fragment);
 	}
 
-	~Shaders() { glDeleteProgram(program); }
+	~Shaders()
+	{
+		glDeleteProgram(program);
+	}
 };
 
-void draw (Scene& scene, Shaders& shaders)
+void draw(Scene& scene, Shaders& shaders)
 {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDrawArrays(GL_TRIANGLES, 0, scene.verticesCount);
@@ -277,41 +280,45 @@ int main()
 {
 	Setup setup;
 	sf::Window& window=*setup.window;
+
+	// model
 	std::string modelPath="resources/fish.obj";
 	Scene scene(modelPath);
-	Shaders shaders;
-	std::string texturePath="resources/fish_texture.png";
-	GLuint texture = loadTexture(texturePath);
 
-	glUseProgram (shaders.program);
-	glBindVertexArray (scene.vao);
-
+	// texture
+	std::string texturePath="resources/fish.png";
+	GLuint texture=loadTexture(texturePath);
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, texture);
 
+	// shaders
+	Shaders shaders;
+	glUseProgram(shaders.program);
+	glBindVertexArray(scene.vao);
+
 	glEnable(GL_DEPTH_TEST);
 
-	bool running = true;
-	while (running)
+	// loop
+	bool running=true;
+	while(running)
 	{
 		while(const std::optional event=window.pollEvent())
 		{
 			if(event->is<sf::Event::Closed>())
-				running = false;
+				running=false;
 			else if(const auto* resized = event->getIf<sf::Event::Resized>())
 				glViewport (0, 0, resized->size.x, resized->size.y);
 		}
 
-		// model
+		// needed to rotate model
 		glm::mat4 model=glm::mat4(1.0f);
-        model=glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        model=glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         GLint mvpLoc=glGetUniformLocation(shaders.program, "mvp");
         glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(model));
 
-		draw (scene, shaders);
+		draw(scene, shaders);
 
 		window.display();
 	}
-
 	return 0;
 }

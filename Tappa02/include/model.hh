@@ -13,7 +13,7 @@ class Model
 		int verticesCount;
 
 	public:
-		Model(std::string& objPath, std::string& texturePath)
+		Model(std::string objPath, std::string texturePath)
 		{
 			loadObj(objPath);
 			loadTexture(texturePath);
@@ -21,17 +21,18 @@ class Model
 
 		~Model()
 		{
-			glDeleteVertexArrays (1, &vao);
-			glDeleteBuffers (1, &vbo);
+			if(vao) glDeleteVertexArrays(1, &vao);
+			if(vbo) glDeleteBuffers(1, &vbo);
+       		if(texture) glDeleteTextures(1, &texture);
 		}
 
-		void loadObj(std::string& objPath)
+		void loadObj(std::string path)
 		{
 			// opening file
-			std::ifstream file(objPath);
-			if (!file.is_open())
+			std::ifstream file(path);
+			if(!file.is_open())
 			{
-				std::cerr<<"Failure: could not open "<<objPath<<"."<<std::endl;
+				std::cerr<<"Failure: could not open "<<path<<"."<<std::endl;
 				exit(1);
 			}
 
@@ -60,7 +61,7 @@ class Model
 				}
 
 				// normals
-				if(prefix=="vn")
+				else if(prefix=="vn")
 				{
 					float nx, ny, nz;
 					stream>>nx>>ny>>nz;
@@ -70,7 +71,7 @@ class Model
 				}
 
 				// texture coordinates
-				if(prefix=="vt")
+				else if(prefix=="vt")
 				{
 					float u, v;
 					stream>>u>>v;
@@ -137,7 +138,7 @@ class Model
 			glEnableVertexAttribArray (2);
 		}
 
-		void loadTexture(std::string& path)
+		void loadTexture(std::string path)
 		{
 			sf::Image image;
 			if(!image.loadFromFile(path))
@@ -159,13 +160,14 @@ class Model
 			glGenerateMipmap(GL_TEXTURE_2D);
 		}
 
-		void draw ()
+		void draw()
 		{
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, texture);
+			
 			glBindVertexArray(vao);
 			glDrawArrays(GL_TRIANGLES, 0, verticesCount);
 
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, texture);
+			glBindVertexArray(0);
 		}
 };

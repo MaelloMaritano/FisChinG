@@ -1,8 +1,12 @@
 #version 410 core
+
 in vec3 frag_normal;
 in vec2 tex_coord;
+
 uniform sampler2D tex;
+
 out vec4 frag_colour;
+
 void main()
 {
 	vec3 N=normalize(frag_normal);
