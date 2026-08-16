@@ -310,11 +310,11 @@ int main()
 				glViewport (0, 0, resized->size.x, resized->size.y);
 		}
 
-		// needed to rotate model
-		glm::mat4 model=glm::mat4(1.0f);
-        model=glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		// rotate model
+		glm::mat4 transform=glm::mat4(1.0f);
+        transform=glm::rotate(transform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         GLint mvpLoc=glGetUniformLocation(shaders.program, "mvp");
-        glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(transform));
 
 		draw(scene, shaders);
 

@@ -162,15 +162,12 @@ class Model
 
 		void draw()
 		{
-			// apply texture
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, texture);
 			
-			// draw triangles
 			glBindVertexArray(vao);
 			glDrawArrays(GL_TRIANGLES, 0, verticesCount);
 
-			// clean
 			glBindVertexArray(0);
 		}
 };

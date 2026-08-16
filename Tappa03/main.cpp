@@ -18,11 +18,6 @@
 #include "./include/hotshaders.hh"
 #include "./include/model.hh"
 
-struct Entity 
-{
-	Model* model;
-	glm::mat4 transform;
-};
 
 class Setup
 {
@@ -75,7 +70,7 @@ class Setup
 class Scene
 {
 	public:
-		std::vector<Entity> entities;
+		std::vector<Model*> entities;
 	private:
 		GLint modelLoc;
 		GLint mvpLoc;
@@ -87,29 +82,27 @@ class Scene
 			mvpLoc=glGetUniformLocation(shaders.program, "mvp");
 		}
 
-		void addEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
+		void addModel(std:: string objPath, std::string texturePath)
 		{
-			Model* model=new Model(objPath, texturePath);
-			entities.push_back({model, transform});
-		}
-
-		void addEntity(Model& model, glm::mat4 transform)
-		{
-			entities.push_back({&model, transform});
+			entities.push_back(new Model(objPath, texturePath));
 		}
 
 		void draw()
 		{
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			
-			for(Entity entity:entities)
+			for(Model* model:entities)
 			{
-				glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				entity.model->draw();
+				glm::mat4 mat=glm::mat4(1.0f);
+				glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mat));
+
+				model->draw();
 			}
 		}
+
 		~Scene()
 		{
+			for(Model* model:entities) delete model;
 			entities.clear();
 		}
 };
@@ -127,16 +120,8 @@ int main()
 
 	// creating the scene
 	Scene scene(shaders);
-	Model fish("resources/fish.obj", "resources/fish.png");
-
-	glm::mat4 fish1_trasform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.0f));
-	fish1_trasform=glm::rotate(fish1_trasform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-	glm::mat4 fish2_trasform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.4f, 0.0f));
-	fish2_trasform=glm::rotate(fish2_trasform, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-	scene.addEntity(fish, fish1_trasform);
-	scene.addEntity(fish, fish2_trasform);
+	scene.addModel("resources/fish.obj", "resources/fish.png");
+	scene.addModel("resources/fish.obj", "resources/fish.png");
 
 	glEnable(GL_DEPTH_TEST);
 
