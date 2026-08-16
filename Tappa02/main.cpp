@@ -3,7 +3,6 @@
 
 #include <SFML/Window.hpp>
 #include <SFML/Graphics/Image.hpp>
-#include <SFML/Audio.hpp>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>

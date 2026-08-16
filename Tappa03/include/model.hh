@@ -89,6 +89,12 @@ class Model
 					stream	>>v1>>slash>>vt1>>slash>>vn1
 							>>v2>>slash>>vt2>>slash>>vn2
 							>>v3>>slash>>vt3>>slash>>vn3;
+
+					if(stream.fail())
+					{
+						std::cerr<<"Failure: parsing failed on line "<<line<< std::endl;
+						exit(1);
+					}
 				
 					int v[]={(v1-1)*3, (v2-1)*3, (v3-1)*3};
 					int vn[]={(vn1-1)*3, (vn2-1)*3, (vn3-1)*3};
@@ -162,12 +168,15 @@ class Model
 
 		void draw()
 		{
+			// apply texture
 			glActiveTexture(GL_TEXTURE0);
 			glBindTexture(GL_TEXTURE_2D, texture);
 			
+			// draw triangles
 			glBindVertexArray(vao);
 			glDrawArrays(GL_TRIANGLES, 0, verticesCount);
 
+			// clean
 			glBindVertexArray(0);
 		}
 };

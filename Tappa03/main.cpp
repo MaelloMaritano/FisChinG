@@ -18,6 +18,11 @@
 #include "./include/hotshaders.hh"
 #include "./include/model.hh"
 
+struct Entity 
+{
+	Model* model;
+	glm::mat4 transform;
+};
 
 class Setup
 {
@@ -70,7 +75,7 @@ class Setup
 class Scene
 {
 	public:
-		std::vector<Model*> entities;
+		std::vector<Entity> entities;
 	private:
 		GLint modelLoc;
 		GLint mvpLoc;
@@ -82,27 +87,29 @@ class Scene
 			mvpLoc=glGetUniformLocation(shaders.program, "mvp");
 		}
 
-		void addModel(std:: string objPath, std::string texturePath)
+		void addEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
 		{
-			entities.push_back(new Model(objPath, texturePath));
+			Model* model=new Model(objPath, texturePath);
+			entities.push_back({model, transform});
+		}
+
+		void addEntity(Model& model, glm::mat4 transform)
+		{
+			entities.push_back({&model, transform});
 		}
 
 		void draw()
 		{
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			
-			for(Model* model:entities)
+			for(Entity entity:entities)
 			{
-				glm::mat4 mat=glm::mat4(1.0f);
-				glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mat));
-
-				model->draw();
+				glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				entity.model->draw();
 			}
 		}
-
 		~Scene()
 		{
-			for(Model* model:entities) delete model;
 			entities.clear();
 		}
 };
@@ -120,8 +127,11 @@ int main()
 
 	// creating the scene
 	Scene scene(shaders);
-	scene.addModel("resources/fish.obj", "resources/fish.png");
-	scene.addModel("resources/fish.obj", "resources/fish.png");
+	Model env("resources/env.obj", "resources/env.png");
+
+	glm::mat4 env_transform=glm::mat4(1.0f);
+
+	scene.addEntity(env, env_transform);
 
 	glEnable(GL_DEPTH_TEST);
 
