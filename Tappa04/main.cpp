@@ -83,23 +83,24 @@ class Camera
 		float theta_deg;
 
 	public:
-		Camera(glm::vec3 position, float phi_deg, float theta_deg)
+		Camera(glm::vec3 position, float phi_deg, float theta_deg, float width, float height)
 		{
 			view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(phi_deg), glm::vec3(0.0f, 1.0f, 0.0f));
 			view_matrix=glm::rotate(view_matrix, glm::radians(theta_deg), glm::vec3(1.0f, 0.0f, 0.0f));
 			view_matrix=glm::translate(view_matrix, -position);
 
-			projection_matrix=glm::perspective(glm::radians(50.0f), (800.f/600.f), 0.1f, 100.0f);
-
-			view_projection_matrix=projection_matrix*view_matrix;
+			updateProjection(width, height);
 		}
-
-		Camera(glm::vec3 position, glm::vec3 target)
+		Camera(glm::vec3 position, glm::vec3 target, float width, float height)
 		{
 			view_matrix=glm::lookAt(position, target, glm::vec3(0.0f, 1.0f, 0.0f));
 
-			projection_matrix=glm::perspective(glm::radians(50.0f), (800.f/600.f), 0.1f, 100.0f);
+			updateProjection(width, height);
+		}
 
+		void updateProjection(float width, float height)
+		{
+			projection_matrix=glm::perspective(glm::radians(50.0f), width/height, 0.1f, 100.0f);
 			view_projection_matrix=projection_matrix*view_matrix;
 		}
 };
@@ -113,6 +114,7 @@ class Scene
 		GLint view_projection_loc;
 		GLint camera_position_loc;
 		GLuint fog_texture;
+		GLint time_loc;
 
 	public:
 		Scene(Shaders& shaders)
@@ -124,6 +126,7 @@ class Scene
 			transform_loc=glGetUniformLocation(shaders.program, "transform");
 			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
 			camera_position_loc=glGetUniformLocation(shaders.program, "camera_position");
+			time_loc=glGetUniformLocation(shaders.program, "time");
 		}
 
 		void addEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
@@ -139,7 +142,7 @@ class Scene
 		void loadFog()
 		{
 			sf::Image image;
-			if(!image.loadFromFile("resources/fog.png"))
+			if(!image.loadFromFile("resources/fog4.png"))
 			{
 				std::cerr<<"Failure: could not load fog texture."<<std::endl;
 				exit(1);
@@ -148,8 +151,8 @@ class Scene
 			glGenTextures(1, &fog_texture);
 			glBindTexture(GL_TEXTURE_2D, fog_texture);
 
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);	
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -159,10 +162,12 @@ class Scene
 			glBindTexture(GL_TEXTURE_2D, 0);
 		}
 
-		void draw(Camera& camera)
+		void draw(Camera& camera, float time)
 		{
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, fog_texture);
+
+			glUniform1f(time_loc, time);
 
 			for(Entity entity:entities)
 			{
@@ -194,12 +199,13 @@ int main()
 	Model sky("resources/skybox.obj", "resources/env.png");
 	scene.addEntity(sky, glm::mat4(1.0f));
 
-	Model env("resources/lake.obj", "resources/env.png");
+	Model env("resources/lake.obj", "resources/lake.png");
 	scene.addEntity(env, glm::mat4(1.0f));
 
-	Camera camera(glm::vec3(0.0f, 0.3f, -2.5f), 0.0f, 0.0f);
-
+	Camera camera(glm::vec3(0.0f, 0.3f, -2.5f), 0.0f, 0.0f, window.getSize().x, window.getSize().y);
 	glEnable(GL_DEPTH_TEST);
+
+	sf::Clock clock;
 
 	// main loop
 	bool running=true;
@@ -210,12 +216,15 @@ int main()
 			if(event->is<sf::Event::Closed>())
 				running = false;
 			else if(const auto* resized = event->getIf<sf::Event::Resized>())
+			{
 				glViewport (0, 0, resized->size.x, resized->size.y);
+				camera.updateProjection(resized->size.x, resized->size.y);
+			}
 		}
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		scene.draw(camera);
+		scene.draw(camera, clock.getElapsedTime().asSeconds());
 		window.display();
 	}
 	return 0;

@@ -308,8 +308,8 @@ int main()
 		{
 			if(event->is<sf::Event::Closed>())
 				running=false;
-			else if(const auto* resized = event->getIf<sf::Event::Resized>())
-				glViewport (0, 0, resized->size.x, resized->size.y);
+			else if(const auto* resized=event->getIf<sf::Event::Resized>())
+				glViewport(0, 0, resized->size.x, resized->size.y);
 		}
 
 		// rotate model
