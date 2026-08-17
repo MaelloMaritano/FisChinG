@@ -74,11 +74,9 @@ class Setup
 class Camera
 {
 	public:
-		glm::mat4 view_projection_matrix;
-
-	private:
 		glm::mat4 view_matrix;
 		glm::mat4 projection_matrix;
+		glm::mat4 view_projection_matrix;
 		
 		float phi_deg;
 		float theta_deg;
@@ -110,14 +108,14 @@ class Scene
 	public:
 		std::vector<Entity> entities;
 	private:
-		GLint modelLoc;
-		GLint mvpLoc;
+		GLint transform_loc;
+		GLint view_projection_loc;
 
 	public:
 		Scene(Shaders& shaders)
 		{
-			modelLoc=glGetUniformLocation(shaders.program, "model");
-			mvpLoc=glGetUniformLocation(shaders.program, "mvp");
+			transform_loc=glGetUniformLocation(shaders.program, "transform");
+			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
 		}
 
 		void addEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
@@ -133,12 +131,10 @@ class Scene
 
 		void draw(Camera& camera)
 		{
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			
 			for(Entity entity:entities)
 			{
-				glm::mat4 mvp=camera.view_projection_matrix*entity.transform;
-				glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(mvp));
+				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
 				entity.model->draw();
 			}
 		}
@@ -155,8 +151,9 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("Tappa02/vertex.vert", "Tappa02/fragment.frag");
+	Shaders shaders("Tappa03/vertex.vert", "Tappa03/fragment.frag");
 	glUseProgram(shaders.program);
+	glUniform1i(glGetUniformLocation(shaders.program, "tex"), 0);
 
 	// creating the scene
 	Scene scene(shaders);
@@ -183,7 +180,8 @@ int main()
 				glViewport (0, 0, resized->size.x, resized->size.y);
 		}
 
-		// drawing and displaying the scene
+		// clear - draw - display
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		scene.draw(camera);
 		window.display();
 	}

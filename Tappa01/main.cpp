@@ -215,35 +215,37 @@ struct Shaders
 	{
 		const char* vertex_source=
 			"#version 410 core\n"
-			"layout(location = 0) in vec3 vp;"
-			"layout(location = 1) in vec3 vn;"
-			"layout(location = 2) in vec2 vt;"
+			"layout(location=0) in vec3 vp;"
+			"layout(location=1) in vec3 vn;"
+			"layout(location=2) in vec2 vt;"
 
-			"uniform mat4 mvp;"
+			"uniform mat4 transform;"
 
-			"out vec3 frag_normal;"
-			"out vec2 tex_coord;"
+			"out vec3 interpolated_normal;"
+			"out vec2 texture_coordinates;"
 
-			"void main() {"
-			"  frag_normal=vn;"
-			"  tex_coord=vt;"
-			"  gl_Position=mvp*vec4(vp, 1.0);"
+			"void main()"
+			"{"
+			"	gl_Position=transform*vec4(vp, 1.0);"
+			"	mat3 tr_inv_transform=transpose(inverse(mat3(transform)));"
+			"	interpolated_normal=normalize((tr_inv_transform)*vn);"
+			"	texture_coordinates=vt;"
 			"}";
 		
 		const char* fragment_source=
 			"#version 410 core\n"
-			"in vec3 frag_normal;"
-			"in vec2 tex_coord;"
+			"in vec3 interpolated_normal;"
+			"in vec2 texture_coordinates;"
 			"uniform sampler2D tex;"
-			"out vec4 frag_colour;"
-			"void main() {"
-			"  vec3 N=normalize(frag_normal);"
-			"  vec3 L=normalize(vec3(0.1, 1.0, 0.1));"
-			"  float diff=max(dot(N, L), 0.0);"
-			"  float ambient=0.2;"
-			"  float lighting=ambient+diff;"
-			"  vec4 tex_color=texture(tex, tex_coord);"
-			"  frag_colour=vec4(tex_color.rgb*lighting, tex_color.a);"
+			"out vec4 fragment_color;"
+			"void main()"
+			"{"
+			"	vec4 texture_color=texture(tex, texture_coordinates);"
+			"	vec3 light_direction=normalize(vec3(1.0, 1.0, -1.0));"
+			"	vec3 N=normalize(interpolated_normal);"
+			"	float light=max(dot(N, light_direction), 0.0);"
+			"	light=0.2+0.8*light;"
+			"	fragment_color=vec4(light*texture_color.rgb, texture_color.a);"
 			"}";
 
 		GLuint vertex=glCreateShader(GL_VERTEX_SHADER);
@@ -313,8 +315,8 @@ int main()
 		// rotate model
 		glm::mat4 transform=glm::mat4(1.0f);
         transform=glm::rotate(transform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        GLint mvpLoc=glGetUniformLocation(shaders.program, "mvp");
-        glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(transform));
+        GLint transform_loc=glGetUniformLocation(shaders.program, "transform");
+        glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(transform));
 
 		draw(scene, shaders);
 

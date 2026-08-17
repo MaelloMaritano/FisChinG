@@ -76,14 +76,12 @@ class Scene
 	public:
 		std::vector<Entity> entities;
 	private:
-		GLint modelLoc;
-		GLint mvpLoc;
+		GLint transform_loc;
 
 	public:
 		Scene(Shaders& shaders)
 		{
-			modelLoc=glGetUniformLocation(shaders.program, "model");
-			mvpLoc=glGetUniformLocation(shaders.program, "mvp");
+			transform_loc=glGetUniformLocation(shaders.program, "transform");
 		}
 
 		void addEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
@@ -103,7 +101,7 @@ class Scene
 			
 			for(Entity entity:entities)
 			{
-				glUniformMatrix4fv(mvpLoc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
 				entity.model->draw();
 			}
 		}
@@ -123,6 +121,7 @@ int main()
 	// shaders
 	Shaders shaders("Tappa02/vertex.vert", "Tappa02/fragment.frag");
 	glUseProgram(shaders.program);
+	glUniform1i(glGetUniformLocation(shaders.program, "tex"), 0);
 
 	// creating the scene
 	Scene scene(shaders);

@@ -1,19 +1,26 @@
 #version 410 core
 
-in vec3 frag_normal;
-in vec2 tex_coord;
+in vec3 interpolated_normal;
+in vec2 texture_coordinates;
 
-uniform sampler2D tex;
+uniform sampler2D tex; // texture
 
-out vec4 frag_colour;
+out vec4 fragment_color;
 
 void main()
 {
-	vec3 N=normalize(frag_normal);
-	vec3 L=normalize(vec3(0.1, 1.0, 0.1));
-	float diff=max(dot(N, L), 0.0);
-	float ambient=0.2;
-	float lighting=ambient+diff;
-	vec4 tex_color=texture(tex, tex_coord);
-	frag_colour=vec4(tex_color.rgb*lighting, tex_color.a);
+	// texture
+	vec4 texture_color=texture(tex, texture_coordinates);
+
+	// light
+	vec3 light_direction=normalize(vec3(1.0, 1.0, -1.0)); // main light
+	vec3 N=normalize(interpolated_normal);
+	float light=max(dot(N, light_direction), 0.0);
+	light=0.2+0.8*light; // to make it diffused
+
+	//fog
+	
+
+	// final color
+	fragment_color=vec4(light*texture_color.rgb, texture_color.a);
 };
