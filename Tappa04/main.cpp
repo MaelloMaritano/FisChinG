@@ -185,7 +185,7 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("Tappa03/vertex.vert", "Tappa03/fragment.frag");
+	Shaders shaders("Tappa04/vertex.vert", "Tappa04/fragment.frag");
 	glUseProgram(shaders.program);
 
 	// creating the scene
