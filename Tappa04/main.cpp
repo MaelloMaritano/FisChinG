@@ -15,10 +15,10 @@
 #include <sstream>
 #include <string>
 
-#include "./include/hotshaders.hh"
-#include "./include/model.hh"
+#include "../include/hotshaders.hh"
+#include "../include/model.hh"
 
-struct Entity 
+struct Entity
 {
 	Model* model;
 	glm::mat4 transform;
@@ -156,7 +156,7 @@ class Scene
 			glUseProgram(still_shaders.program);
 			glEnable(GL_DEPTH_TEST);
 
-			for(Entity entity:still_entities)
+			for(Entity& entity:still_entities)
 			{
 				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
 				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
@@ -165,7 +165,7 @@ class Scene
 
 			glUseProgram(animated_shaders.program);
 
-			for(Entity entity:animated_entities)
+			for(Entity& entity:animated_entities)
 			{
 				glUniformMatrix4fv(animated_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
 				glUniformMatrix4fv(animated_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
@@ -194,15 +194,20 @@ int main()
 	// creating the scene
 	Scene scene(still_shaders, animated_shaders);
 	// sky
-	Model sky("resources/sky.obj", "resources/sky.png");
+	Model sky("resources/sky.obj", "resources/god.png");
 	scene.addAnimatedEntity(sky, glm::mat4(1.0f));
 	// environment
 	Model env("resources/land.obj", "resources/lake.png");
 	scene.addStillEntity(env, glm::mat4(1.0f));
+	// trees
+	Model trees_bg("resources/trees_background.obj", "resources/trees_bg.png");
+	scene.addAnimatedEntity(trees_bg, glm::mat4(1.0f));
+	Model trees_fg("resources/trees_foreground.obj", "resources/trees_fg.png");
+	scene.addAnimatedEntity(trees_fg, glm::mat4(1.0f));
 	// water
 	Model water("resources/water.obj", "resources/lake.png");
 	scene.addAnimatedEntity(water, glm::mat4(1.0f));
-
+	
 
 	// creating the camera
 	Camera camera(glm::vec3(0.0f, 0.3f, -2.5f), 0.0f, 0.0f, window.getSize().x, window.getSize().y);

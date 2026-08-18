@@ -15,8 +15,8 @@
 #include <sstream>
 #include <string>
 
-#include "./include/hotshaders.hh"
-#include "./include/model.hh"
+#include "../include/hotshaders.hh"
+#include "../include/model.hh"
 
 struct Entity
 {
@@ -134,7 +134,7 @@ class Scene
 
 		void draw(Camera& camera)
 		{
-			for(Entity entity:entities)
+			for(Entity& entity:entities)
 			{
 				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
 				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
@@ -160,7 +160,7 @@ int main()
 	// creating the scene
 	Scene scene(shaders);
 
-	Model sky("resources/sky.obj", "resources/sky.png");
+	Model sky("resources/sky.obj", "resources/god.png");
 	scene.addEntity(sky, glm::mat4(1.0f));
 
 	Model env("resources/lake.obj", "resources/lake.png");

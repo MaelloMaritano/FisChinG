@@ -14,10 +14,10 @@
 #include <sstream>
 #include <string>
 
-#include "./include/hotshaders.hh"
-#include "./include/model.hh"
+#include "../include/hotshaders.hh"
+#include "../include/model.hh"
 
-struct Entity 
+struct Entity
 {
 	Model* model;
 	glm::mat4 transform;
