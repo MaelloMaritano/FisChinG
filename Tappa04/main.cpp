@@ -199,6 +199,9 @@ int main()
 	Model sky("resources/skybox.obj", "resources/env.png");
 	scene.addEntity(sky, glm::mat4(1.0f));
 
+	Model bg_trees("resources/arbeimerged.obj", "resources/bg_trees.png");
+	scene.addEntity(bg_trees, glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 5.0f)));
+
 	Model env("resources/lake.obj", "resources/lake.png");
 	scene.addEntity(env, glm::mat4(1.0f));
 

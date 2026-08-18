@@ -25,10 +25,11 @@ void main()
 	//fog
 	vec2 fog_uv=world_position.xz*0.05+vec2(time*0.002, 0.0);
 	float fog_noise=texture(fog_texture, fog_uv).r;
-	vec3 fog_color=vec3(0.17, 0.18, 0.17);
+	vec3 fog_color=vec3(0.20, 0.18, 0.20);
 	float distance_from_camera=length(world_position-camera_position);
-	float distance_fog=smoothstep(0.0, 15.0, distance_from_camera);
-	float fog_factor=distance_fog*fog_noise;
+	float distance_fog=smoothstep(0.0, 10.0, distance_from_camera);
+	float fog_density=0.3+fog_noise*0.5;
+	float fog_factor=distance_fog*fog_density;
 
 	// final color
 	vec3 final_color=mix(light*texture_color.rgb, fog_color, fog_factor);
