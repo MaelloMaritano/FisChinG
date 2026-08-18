@@ -18,7 +18,7 @@
 #include "./include/hotshaders.hh"
 #include "./include/model.hh"
 
-struct Entity 
+struct Entity
 {
 	Model* model;
 	glm::mat4 transform;
@@ -160,7 +160,7 @@ int main()
 	// creating the scene
 	Scene scene(shaders);
 
-	Model sky("resources/skybox.obj", "resources/env.png");
+	Model sky("resources/sky.obj", "resources/sky.png");
 	scene.addEntity(sky, glm::mat4(1.0f));
 
 	Model env("resources/lake.obj", "resources/lake.png");

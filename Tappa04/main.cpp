@@ -108,80 +108,78 @@ class Camera
 class Scene
 {
 	public:
-		std::vector<Entity> entities;
+		std::vector<Entity> still_entities;
+		std::vector<Entity> animated_entities;
 	private:
-		GLint transform_loc;
-		GLint view_projection_loc;
-		GLint camera_position_loc;
-		GLuint fog_texture;
+		GLint still_transform_loc;
+		GLint still_view_projection_loc;
+
+		GLint animated_transform_loc;
+		GLint animated_view_projection_loc;
 		GLint time_loc;
 
 	public:
-		Scene(Shaders& shaders)
+		Scene(Shaders& still_shaders, Shaders& animated_shaders)
 		{
-			glUniform1i(glGetUniformLocation(shaders.program, "tex"), 0);
-			glUniform1i(glGetUniformLocation(shaders.program, "fog_texture"), 1);
-			loadFog();
+			// still
+			still_transform_loc=glGetUniformLocation(still_shaders.program, "transform");
+			still_view_projection_loc=glGetUniformLocation(still_shaders.program, "view_projection");
 
-			transform_loc=glGetUniformLocation(shaders.program, "transform");
-			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
-			camera_position_loc=glGetUniformLocation(shaders.program, "camera_position");
-			time_loc=glGetUniformLocation(shaders.program, "time");
+			// animated
+			animated_transform_loc=glGetUniformLocation(animated_shaders.program, "transform");
+			animated_view_projection_loc=glGetUniformLocation(animated_shaders.program, "view_projection");
+			time_loc=glGetUniformLocation(animated_shaders.program, "time");
 		}
 
-		void addEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
+		void addStillEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
 		{
 			Model* model=new Model(objPath, texturePath);
-			entities.push_back({model, transform});
+			still_entities.push_back({model, transform});
 		}
-		void addEntity(Model& model, glm::mat4 transform)
+		void addStillEntity(Model& model, glm::mat4 transform)
 		{
-			entities.push_back({&model, transform});
+			still_entities.push_back({&model, transform});
 		}
 
-		void loadFog()
+		void addAnimatedEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
 		{
-			sf::Image image;
-			if(!image.loadFromFile("resources/fog4.png"))
+			Model* model=new Model(objPath, texturePath);
+			animated_entities.push_back({model, transform});
+		}
+		void addAnimatedEntity(Model& model, glm::mat4 transform)
+		{
+			animated_entities.push_back({&model, transform});
+		}
+
+		void draw(Shaders& still_shaders, Shaders& animated_shaders, Camera& camera, float time)
+		{
+			glUseProgram(still_shaders.program);
+			glEnable(GL_DEPTH_TEST);
+
+			for(Entity entity:still_entities)
 			{
-				std::cerr<<"Failure: could not load fog texture."<<std::endl;
-				exit(1);
+				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				entity.model->draw();
 			}
 
-			glGenTextures(1, &fog_texture);
-			glBindTexture(GL_TEXTURE_2D, fog_texture);
+			glUseProgram(animated_shaders.program);
 
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-			sf::Vector2u size=image.getSize();
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
-			glGenerateMipmap(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, 0);
-		}
-
-		void draw(Camera& camera, float time)
-		{
-			glActiveTexture(GL_TEXTURE1);
-			glBindTexture(GL_TEXTURE_2D, fog_texture);
-
-			glUniform1f(time_loc, time);
-
-			for(Entity entity:entities)
+			for(Entity entity:animated_entities)
 			{
-				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				glUniform3fv(camera_position_loc, 1, glm::value_ptr(camera.position));
+				glUniformMatrix4fv(animated_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(animated_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				glUniform1f(time_loc, time);
 				entity.model->draw();
 			}
 		}
 		~Scene()
 		{
-			entities.clear();
+			still_entities.clear();
 		}
 };
+
+
 
 int main()
 {
@@ -190,24 +188,26 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("Tappa04/vertex.vert", "Tappa04/fragment.frag");
-	glUseProgram(shaders.program);
+	Shaders still_shaders("Tappa04/still.vert", "Tappa04/still.frag");
+	Shaders animated_shaders("Tappa04/animated.vert", "Tappa04/animated.frag");
 
 	// creating the scene
-	Scene scene(shaders);
+	Scene scene(still_shaders, animated_shaders);
+	// sky
+	Model sky("resources/sky.obj", "resources/sky.png");
+	scene.addAnimatedEntity(sky, glm::mat4(1.0f));
+	// environment
+	Model env("resources/land.obj", "resources/lake.png");
+	scene.addStillEntity(env, glm::mat4(1.0f));
+	// water
+	Model water("resources/water.obj", "resources/lake.png");
+	scene.addAnimatedEntity(water, glm::mat4(1.0f));
 
-	Model sky("resources/skybox.obj", "resources/env.png");
-	scene.addEntity(sky, glm::mat4(1.0f));
 
-	Model bg_trees("resources/arbeimerged.obj", "resources/bg_trees.png");
-	scene.addEntity(bg_trees, glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 5.0f)));
-
-	Model env("resources/lake.obj", "resources/lake.png");
-	scene.addEntity(env, glm::mat4(1.0f));
-
+	// creating the camera
 	Camera camera(glm::vec3(0.0f, 0.3f, -2.5f), 0.0f, 0.0f, window.getSize().x, window.getSize().y);
-	glEnable(GL_DEPTH_TEST);
 
+	// clock
 	sf::Clock clock;
 
 	// main loop
@@ -227,7 +227,7 @@ int main()
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		scene.draw(camera, clock.getElapsedTime().asSeconds());
+		scene.draw(still_shaders, animated_shaders, camera, clock.getElapsedTime().asSeconds());
 		window.display();
 	}
 	return 0;
