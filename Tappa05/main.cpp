@@ -31,22 +31,24 @@ struct Rod:Entity
 
 	void moveRod(float time)
 	{
+		if(time-movementGuard<0) movementGuard=time;
 		if(time-movementGuard>1)
 		{
 			movementGuard=time;
-			if(left) transform=glm::translate(transform, glm::vec3(0.01f, 0.0f, 0.0f));
-			else transform=glm::translate(transform, glm::vec3(-0.01f, 0.0f, 0.0f));
+			if(left) transform=glm::rotate(transform, glm::radians(0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
+			else transform=glm::rotate(transform, glm::radians(-0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
 			left=!left;
 		}
 	}
 
 	void shakeRod(float time)
 	{
+		if(time-movementGuard<0) movementGuard=time;
 		if(time-movementGuard>0.1f)
 		{
 			movementGuard=time;
-			if(left) transform=glm::translate(transform, glm::vec3(0.01f, 0.0f, 0.0f));
-			else transform=glm::translate(transform, glm::vec3(-0.01f, 0.0f, 0.0f));
+			if(left) transform=glm::translate(transform, glm::vec3(0.01f, 0.01f, 0.0f));
+			else transform=glm::translate(transform, glm::vec3(-0.01f, -0.01f, 0.0f));
 			left=!left;
 		}
 	}
@@ -290,6 +292,7 @@ int main()
 		}
 
 		time=clock.getElapsedTime().asSeconds();
+		if(time>15) clock.restart();
 
 		// rod movement tests
 		if(time<5) working_rod.moveRod(time);

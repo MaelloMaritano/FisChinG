@@ -31,22 +31,24 @@ struct Rod:Entity
 
 	void moveRod(float time)
 	{
+		if(time-movementGuard<0) movementGuard=time;
 		if(time-movementGuard>1)
 		{
 			movementGuard=time;
-			if(left) transform=glm::translate(transform, glm::vec3(0.01f, 0.0f, 0.0f));
-			else transform=glm::translate(transform, glm::vec3(-0.01f, 0.0f, 0.0f));
+			if(left) transform=glm::rotate(transform, glm::radians(0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
+			else transform=glm::rotate(transform, glm::radians(-0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
 			left=!left;
 		}
 	}
 
 	void shakeRod(float time)
 	{
+		if(time-movementGuard<0) movementGuard=time;
 		if(time-movementGuard>0.1f)
 		{
 			movementGuard=time;
-			if(left) transform=glm::translate(transform, glm::vec3(0.01f, 0.0f, 0.0f));
-			else transform=glm::translate(transform, glm::vec3(-0.01f, 0.0f, 0.0f));
+			if(left) transform=glm::translate(transform, glm::vec3(0.01f, 0.01f, 0.0f));
+			else transform=glm::translate(transform, glm::vec3(-0.01f, -0.01f, 0.0f));
 			left=!left;
 		}
 	}
@@ -69,10 +71,10 @@ struct Fish:Entity
 	float movementGuard=0;
 	void spin(float time)
 	{
-		if(time-movementGuard>0.2f)
+		if(time-movementGuard>0.3f)
 		{
 			movementGuard=time;
-			transform=glm::rotate(transform, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+			transform=glm::rotate(transform, glm::radians(22.5f), glm::vec3(0.0f, 1.0f, 0.0f));
 		}
 	}
 };
@@ -163,7 +165,10 @@ class Scene
 	public:
 		std::vector<Entity> still_entities;
 		std::vector<Entity> animated_entities;
-		Rod* rod;
+
+		Rod* rod=nullptr;
+
+		Fish* fish=nullptr;
 	private:
 		GLint still_transform_loc;
 		GLint still_view_projection_loc;
@@ -210,6 +215,11 @@ class Scene
 			rod=&_rod;
 		}
 
+		void addFish(Fish& _fish)
+		{
+			fish=&_fish;
+		}
+
 		void draw(Shaders& still_shaders, Shaders& animated_shaders, Camera& camera, float time)
 		{
 			glUseProgram(still_shaders.program);
@@ -239,9 +249,24 @@ class Scene
 				entity.model->draw();
 			}
 		}
+
+		void drawFish(Shaders& still_shaders, Camera& camera)
+		{
+			glUseProgram(still_shaders.program);
+			glEnable(GL_DEPTH_TEST);
+
+			if(fish!=nullptr)
+			{
+				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(fish->transform));
+				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				fish->model->draw();
+			}
+		}
+
 		~Scene()
 		{
 			still_entities.clear();
+			animated_entities.clear();
 		}
 };
 
@@ -275,12 +300,21 @@ int main()
 	scene.addAnimatedEntity(water, glm::mat4(1.0f));
 
 	// rod
-	Model rod("resources/rod.obj", "resources/rod.png");
-	Rod working_rod({&rod, glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.23f, -3.28f))});
-	scene.addRod(working_rod);
+	Model rod_model("resources/rod.obj", "resources/rod.png");
+	Rod rod({&rod_model, glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.23f, -3.28f))});
+	scene.addRod(rod);
+
+	// fish
+	Model fish_model("resources/fish.obj", "resources/fish.png");
+	glm::mat4 fish_transform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.3f, -2.5f));
+	fish_transform=glm::rotate(fish_transform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	fish_transform=glm::scale(fish_transform, glm::vec3(0.15f, 0.15f, 0.15f));
+	Fish fish({&fish_model, fish_transform});
+	scene.addFish(fish);
 
 	// creating the camera
 	Camera camera(glm::vec3(0.0f, 0.3f, -2.5f), 0.0f, 0.0f, window.getSize().x, window.getSize().y);
+	Camera fish_camera(glm::vec3(0.0f, 0.3f, -2.2f), 0.0f, 0.0f, window.getSize().x, window.getSize().y);
 
 	// clock
 	sf::Clock clock;
@@ -303,24 +337,35 @@ int main()
 		}
 
 		time=clock.getElapsedTime().asSeconds();
+		if(time>20) clock.restart();
 
 		// rod movement tests
-		if(time<5) working_rod.moveRod(time);
-		else if(time<10) working_rod.shakeRod(time);
+		if(time<5) rod.moveRod(time);
+		else if(time<10) rod.shakeRod(time);
 		else if(time<15 && doRotate)
 		{
-			working_rod.liftRod();
+			rod.liftRod();
 			doRotate=false;
 		}
 		else if(time>15 && !doRotate)
 		{
-			working_rod.lowerRod();
+			rod.lowerRod();
 			doRotate=true;
 		}
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		scene.draw(still_shaders, animated_shaders, camera, time);
+		// scene.draw(still_shaders, animated_shaders, camera, time);
+
+		// fish movement test
+		if(time>10 && time<15)
+		{
+			fish.spin(time);
+			scene.draw(still_shaders, animated_shaders, fish_camera, time);
+			scene.drawFish(still_shaders, fish_camera);
+		}
+		else scene.draw(still_shaders, animated_shaders, camera, time);
+
 		window.display();
 	}
 	return 0;
