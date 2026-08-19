@@ -24,6 +24,59 @@ struct Entity
 	glm::mat4 transform;
 };
 
+struct Rod:Entity
+{
+	bool left=true;
+	float movementGuard=0;
+
+	void moveRod(float time)
+	{
+		if(time-movementGuard>1)
+		{
+			movementGuard=time;
+			if(left) transform=glm::translate(transform, glm::vec3(0.01f, 0.0f, 0.0f));
+			else transform=glm::translate(transform, glm::vec3(-0.01f, 0.0f, 0.0f));
+			left=!left;
+		}
+	}
+
+	void shakeRod(float time)
+	{
+		if(time-movementGuard>0.1f)
+		{
+			movementGuard=time;
+			if(left) transform=glm::translate(transform, glm::vec3(0.01f, 0.0f, 0.0f));
+			else transform=glm::translate(transform, glm::vec3(-0.01f, 0.0f, 0.0f));
+			left=!left;
+		}
+	}
+
+	void liftRod()
+	{
+		transform=glm::translate(transform, glm::vec3(0.0f, 0.45f, 0.0f));
+		transform=glm::rotate(transform, glm::radians(45.0f), glm::vec3(1.0f, -0.1f, 0.0f));
+	}
+
+	void lowerRod()
+	{
+		transform=glm::rotate(transform, glm::radians(-45.0f), glm::vec3(1.0f, -0.1f, 0.0f));
+		transform=glm::translate(transform, glm::vec3(0.0f, -0.45f, 0.0f));
+	}
+};
+
+struct Fish:Entity
+{
+	float movementGuard=0;
+	void spin(float time)
+	{
+		if(time-movementGuard>0.2f)
+		{
+			movementGuard=time;
+			transform=glm::rotate(transform, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		}
+	}
+};
+
 class Setup
 {
 	public:
@@ -110,6 +163,7 @@ class Scene
 	public:
 		std::vector<Entity> still_entities;
 		std::vector<Entity> animated_entities;
+		Rod* rod;
 	private:
 		GLint still_transform_loc;
 		GLint still_view_projection_loc;
@@ -151,6 +205,11 @@ class Scene
 			animated_entities.push_back({&model, transform});
 		}
 
+		void addRod(Rod& _rod)
+		{
+			rod=&_rod;
+		}
+
 		void draw(Shaders& still_shaders, Shaders& animated_shaders, Camera& camera, float time)
 		{
 			glUseProgram(still_shaders.program);
@@ -161,6 +220,13 @@ class Scene
 				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
 				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
 				entity.model->draw();
+			}
+
+			if(rod!=nullptr)
+			{
+				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(rod->transform));
+				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				rod->model->draw();
 			}
 
 			glUseProgram(animated_shaders.program);
@@ -188,8 +254,8 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders still_shaders("Tappa04/still.vert", "Tappa04/still.frag");
-	Shaders animated_shaders("Tappa04/animated.vert", "Tappa04/animated.frag");
+	Shaders still_shaders("Tappa06/still.vert", "Tappa06/still.frag");
+	Shaders animated_shaders("Tappa06/animated.vert", "Tappa06/animated.frag");
 
 	// creating the scene
 	Scene scene(still_shaders, animated_shaders);
@@ -207,16 +273,22 @@ int main()
 	// water
 	Model water("resources/water.obj", "resources/lake.png");
 	scene.addAnimatedEntity(water, glm::mat4(1.0f));
-	
+
+	// rod
+	Model rod("resources/rod.obj", "resources/rod.png");
+	Rod working_rod({&rod, glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.23f, -3.28f))});
+	scene.addRod(working_rod);
 
 	// creating the camera
 	Camera camera(glm::vec3(0.0f, 0.3f, -2.5f), 0.0f, 0.0f, window.getSize().x, window.getSize().y);
 
 	// clock
 	sf::Clock clock;
+	float time;
 
 	// main loop
 	bool running=true;
+	bool doRotate=true;
 	while(running)
 	{
 		while(const std::optional event=window.pollEvent())
@@ -230,9 +302,25 @@ int main()
 			}
 		}
 
+		time=clock.getElapsedTime().asSeconds();
+
+		// rod movement tests
+		if(time<5) working_rod.moveRod(time);
+		else if(time<10) working_rod.shakeRod(time);
+		else if(time<15 && doRotate)
+		{
+			working_rod.liftRod();
+			doRotate=false;
+		}
+		else if(time>15 && !doRotate)
+		{
+			working_rod.lowerRod();
+			doRotate=true;
+		}
+
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		scene.draw(still_shaders, animated_shaders, camera, clock.getElapsedTime().asSeconds());
+		scene.draw(still_shaders, animated_shaders, camera, time);
 		window.display();
 	}
 	return 0;

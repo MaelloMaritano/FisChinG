@@ -30,7 +30,7 @@ struct Setup
 		settings.minorVersion=1;
 
 		// window
-		window=new sf::Window(sf::VideoMode({800, 600}), "New Window", sf::Style::Default, sf::State::Windowed, settings);
+		window=new sf::Window(sf::VideoMode({800, 600}), "FisChinG", sf::Style::Default, sf::State::Windowed, settings);
 		window->setVerticalSyncEnabled (true);
 		if(!window->setActive(true))
 		{
