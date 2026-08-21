@@ -157,7 +157,7 @@ class Model
 			glGenerateMipmap(GL_TEXTURE_2D);
 		}
 
-		void draw()
+		void draw() const
 		{
 			// apply texture
 			glActiveTexture(GL_TEXTURE0);
