@@ -17,12 +17,6 @@
 #include "../include/hotshaders.hh"
 #include "../include/model.hh"
 
-struct Entity
-{
-	Model* model;
-	glm::mat4 transform;
-};
-
 class Setup
 {
 	public:
@@ -70,47 +64,82 @@ class Setup
 		}
 };
 
+class ResourcesManager
+{
+	private:
+		std::string dirname="resources/";
+		std::unordered_map<std::string, Model*> models;
+
+	public:
+		Model& loadModel(const std::string& objName, const std::string& textureName)
+		{
+			auto model_iterator=models.find(objName);
+			if(model_iterator!=models.end()) return *(model_iterator->second);
+
+			Model* model=new Model(dirname+objName, dirname+textureName);
+			models[objName]=model;
+			return *model;
+		}
+
+		~ResourcesManager()
+		{
+			for(auto& [name, model]:models) delete model;
+		}
+};
+
+struct Entity
+{
+	const Model* model;
+	glm::mat4 transform;
+};
 
 class Scene
 {
-	public:
-		std::vector<Entity> entities;
 	private:
+		std::unordered_map<std::string, Entity> entities;
+		
 		GLint transform_loc;
 
 	public:
 		// constructor
-		Scene(const Shaders& shaders)
+		Scene(Shaders& shaders)
 		{
 			transform_loc=glGetUniformLocation(shaders.program, "transform");
 		}
 
-		// add entities
-		void addEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
+		// add entity
+		void addEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
 		{
-			Model* model=new Model(objPath, texturePath);
-			entities.push_back({model, transform});
+			entities[entityName]=Entity({&model, transform});
 		}
-		void addEntity(Model& model, glm::mat4 transform)
-		{
-			entities.push_back({&model, transform});
-		}
-
+		
 		// draw
-		void draw()
+		void draw() const
 		{
-			for(Entity entity:entities)
+			glEnable(GL_DEPTH_TEST);
+
+			for(const auto& [name, entity]:entities)
 			{
 				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
 				entity.model->draw();
 			}
 		}
-		~Scene()
-		{
-			entities.clear();
-		}
 };
 
+
+void loadScene(ResourcesManager& resources, Scene& scene)
+{
+	Model& fish_model=resources.loadModel("fish.obj", "fish.png");
+
+	glm::mat4 fish1_trasform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.0f));
+	fish1_trasform=glm::rotate(fish1_trasform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	glm::mat4 fish2_trasform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.4f, 0.0f));
+	fish2_trasform=glm::rotate(fish2_trasform, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	scene.addEntity("fish1", fish_model, fish1_trasform);
+	scene.addEntity("fish2", fish_model, fish2_trasform);
+}
 
 int main()
 {
@@ -123,31 +152,19 @@ int main()
 	glUseProgram(shaders.program);
 	glUniform1i(glGetUniformLocation(shaders.program, "tex"), 0);
 
-	// creating the scene
+	// resources and scene setup
+	ResourcesManager resources;
 	Scene scene(shaders);
-	Model fish("resources/fish.obj", "resources/fish.png");
-
-	glm::mat4 fish1_trasform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.0f));
-	fish1_trasform=glm::rotate(fish1_trasform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-	glm::mat4 fish2_trasform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.4f, 0.0f));
-	fish2_trasform=glm::rotate(fish2_trasform, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-	scene.addEntity(fish, fish1_trasform);
-	scene.addEntity(fish, fish2_trasform);
-
-	glEnable(GL_DEPTH_TEST);
+	loadScene(resources, scene);
 
 	// main loop
-	bool running=true;
-	while(running)
+	while(window.isOpen())
 	{
+		// event handling
 		while(const std::optional event=window.pollEvent())
 		{
-			if(event->is<sf::Event::Closed>())
-				running = false;
-			else if(const auto* resized = event->getIf<sf::Event::Resized>())
-				glViewport (0, 0, resized->size.x, resized->size.y);
+			if(event->is<sf::Event::Closed>()) window.close();
+			else if(const auto* resized=event->getIf<sf::Event::Resized>()) glViewport(0, 0, resized->size.x, resized->size.y);
 		}
 
 		// clear - draw - display
