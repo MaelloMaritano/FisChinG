@@ -238,10 +238,7 @@ struct Scene
 		model.draw();
 	}
 
-	~Scene()
-	{
-
-	}
+	~Scene() {}
 };
 
 struct Shaders
@@ -318,7 +315,6 @@ int main()
 	// shaders
 	Shaders shaders;
 	glUseProgram(shaders.program);
-	glBindVertexArray(scene.vao);
 
 	// scene
 	Scene scene(shaders);
