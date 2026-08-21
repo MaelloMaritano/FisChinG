@@ -27,6 +27,7 @@ struct Entity
 struct Rod:Entity
 {
 	bool left=true;
+	bool lifted=false;
 	float movementGuard=0;
 
 	void moveRod(float time)
@@ -55,14 +56,21 @@ struct Rod:Entity
 
 	void liftRod()
 	{
-		transform=glm::translate(transform, glm::vec3(0.0f, 0.45f, 0.0f));
-		transform=glm::rotate(transform, glm::radians(45.0f), glm::vec3(1.0f, -0.1f, 0.0f));
+		if(!lifted)
+		{
+			transform=glm::translate(transform, glm::vec3(0.0f, 0.45f, 0.0f));
+			transform=glm::rotate(transform, glm::radians(45.0f), glm::vec3(1.0f, -0.1f, 0.0f));
+			lifted=true;
+		}
 	}
-
 	void lowerRod()
 	{
-		transform=glm::rotate(transform, glm::radians(-45.0f), glm::vec3(1.0f, -0.1f, 0.0f));
-		transform=glm::translate(transform, glm::vec3(0.0f, -0.45f, 0.0f));
+		if(lifted)
+		{
+			transform=glm::rotate(transform, glm::radians(-45.0f), glm::vec3(1.0f, -0.1f, 0.0f));
+			transform=glm::translate(transform, glm::vec3(0.0f, -0.45f, 0.0f));
+			lifted=false;
+		}
 	}
 };
 
@@ -162,6 +170,7 @@ class Scene
 		GLint time_loc;
 
 	public:
+		// constructor
 		Scene(Shaders& still_shaders, Shaders& animated_shaders)
 		{
 			// still
@@ -174,7 +183,8 @@ class Scene
 			time_loc=glGetUniformLocation(animated_shaders.program, "time");
 		}
 
-		void addStillEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
+		// add entities
+		void addStillEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
 		{
 			Model* model=new Model(objPath, texturePath);
 			still_entities.push_back({model, transform});
@@ -184,7 +194,7 @@ class Scene
 			still_entities.push_back({&model, transform});
 		}
 
-		void addAnimatedEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
+		void addAnimatedEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
 		{
 			Model* model=new Model(objPath, texturePath);
 			animated_entities.push_back({model, transform});
@@ -194,11 +204,29 @@ class Scene
 			animated_entities.push_back({&model, transform});
 		}
 
-		void addRod(Rod& _rod)
+		void addRod(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
 		{
-			rod=&_rod;
+			Model* model=new Model(objPath, texturePath);
+			rod=new Rod({model, transform});
 		}
 
+		// to add all needed entities
+		void fill()
+		{
+			// sky
+			addAnimatedEntity("resources/sky.obj", "resources/god.png", glm::mat4(1.0f));
+			// environment
+			addStillEntity("resources/land.obj", "resources/lake.png", glm::mat4(1.0f));
+			// trees
+			addAnimatedEntity("resources/trees_background.obj", "resources/trees_bg.png", glm::mat4(1.0f));
+			addAnimatedEntity("resources/trees_foreground.obj", "resources/trees_fg.png", glm::mat4(1.0f));
+			// water
+			addAnimatedEntity("resources/water.obj", "resources/lake.png", glm::mat4(1.0f));
+			// rod
+			addRod("resources/rod.obj", "resources/rod.png", glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.15f, -3.28f)));
+		}
+
+		// draw
 		void draw(Shaders& still_shaders, Shaders& animated_shaders, Camera& camera, float time)
 		{
 			glUseProgram(still_shaders.program);
@@ -228,6 +256,7 @@ class Scene
 				entity.model->draw();
 			}
 		}
+		
 		~Scene()
 		{
 			still_entities.clear();
@@ -248,28 +277,10 @@ int main()
 
 	// creating the scene
 	Scene scene(still_shaders, animated_shaders);
-	// sky
-	Model sky("resources/sky.obj", "resources/god.png");
-	scene.addAnimatedEntity(sky, glm::mat4(1.0f));
-	// environment
-	Model env("resources/land.obj", "resources/lake.png");
-	scene.addStillEntity(env, glm::mat4(1.0f));
-	// trees
-	Model trees_bg("resources/trees_background.obj", "resources/trees_bg.png");
-	scene.addAnimatedEntity(trees_bg, glm::mat4(1.0f));
-	Model trees_fg("resources/trees_foreground.obj", "resources/trees_fg.png");
-	scene.addAnimatedEntity(trees_fg, glm::mat4(1.0f));
-	// water
-	Model water("resources/water.obj", "resources/lake.png");
-	scene.addAnimatedEntity(water, glm::mat4(1.0f));
-
-	// rod
-	Model rod("resources/rod.obj", "resources/rod.png");
-	Rod working_rod({&rod, glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.23f, -3.28f))});
-	scene.addRod(working_rod);
+	scene.fill();
 
 	// creating the camera
-	Camera camera(glm::vec3(0.0f, 0.3f, -2.5f), 0.0f, 0.0f, window.getSize().x, window.getSize().y);
+	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
 
 	// clock
 	sf::Clock clock;
@@ -277,7 +288,7 @@ int main()
 
 	// main loop
 	bool running=true;
-	bool doRotate=true;
+
 	while(running)
 	{
 		while(const std::optional event=window.pollEvent())
@@ -295,18 +306,10 @@ int main()
 		if(time>15) clock.restart();
 
 		// rod movement tests
-		if(time<5) working_rod.moveRod(time);
-		else if(time<10) working_rod.shakeRod(time);
-		else if(time<15 && doRotate)
-		{
-			working_rod.liftRod();
-			doRotate=false;
-		}
-		else if(time>15 && !doRotate)
-		{
-			working_rod.lowerRod();
-			doRotate=true;
-		}
+		if(time<5) scene.rod->moveRod(time);
+		else if(time<10) scene.rod->shakeRod(time);
+		else if(time<15) scene.rod->liftRod();
+		else if(time>15) scene.rod->lowerRod();
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

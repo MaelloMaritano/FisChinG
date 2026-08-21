@@ -13,7 +13,7 @@ class Model
 		int verticesCount;
 
 	public:
-		Model(std::string objPath, std::string texturePath)
+		Model(const std::string& objPath, const std::string& texturePath)
 		{
 			loadObj(objPath);
 			loadTexture(texturePath);

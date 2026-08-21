@@ -1,4 +1,4 @@
-#define GLAD_GL_IMPLEMENTATION // Necessary for the header-only version.
+#define GLAD_GL_IMPLEMENTATION
 #include "../glad/gl.h"
 
 #include <SFML/Window.hpp>
@@ -14,10 +14,12 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <ctime>
 
 #include "../include/hotshaders.hh"
 #include "../include/model.hh"
 
+// entities
 struct Entity
 {
 	Model* model;
@@ -87,6 +89,15 @@ struct Fish:Entity
 	}
 };
 
+// status
+enum Status
+{
+	WAIT,
+	REEL,
+	CAUGHT
+};
+
+// setup class
 class Setup
 {
 	public:
@@ -134,6 +145,7 @@ class Setup
 		}
 };
 
+// camera class
 class Camera
 {
 	public:
@@ -144,6 +156,8 @@ class Camera
 		glm::vec3 position;
 		float phi_deg;
 		float theta_deg;
+
+		bool back=false;
 
 	public:
 		Camera(glm::vec3 position, float phi_deg, float theta_deg, float width, float height)
@@ -166,8 +180,28 @@ class Camera
 			projection_matrix=glm::perspective(glm::radians(50.0f), width/height, 0.1f, 100.0f);
 			view_projection_matrix=projection_matrix*view_matrix;
 		}
+
+		void stepBack()
+		{
+			if(!back)
+			{
+				view_matrix=glm::translate(view_matrix, glm::vec3(0.0f, 0.0f, -0.2f));
+				view_projection_matrix=projection_matrix*view_matrix;
+				back=true;
+			}
+		}
+		void stepForward()
+		{
+			if(back)
+			{
+				view_matrix=glm::translate(view_matrix, glm::vec3(0.0f, 0.0f, +0.2f));
+				view_projection_matrix=projection_matrix*view_matrix;
+				back=false;
+			}
+		}
 };
 
+// scene class
 class Scene
 {
 	public:
@@ -177,6 +211,11 @@ class Scene
 		Rod* rod=nullptr;
 
 		Fish* fish=nullptr;
+		bool draw_fish=false;
+
+		std::vector<Entity> ui;
+		bool draw_ui=false;
+
 	private:
 		GLint still_transform_loc;
 		GLint still_view_projection_loc;
@@ -232,6 +271,11 @@ class Scene
 			fish=new Fish({model, transform});
 		}
 
+		void addToUi(Model& model, glm::mat4 transform)
+		{
+			ui.push_back({&model, transform});
+		}
+
 		// to add all needed entities
 		void fill()
 		{
@@ -252,6 +296,50 @@ class Scene
 			fish_transform=glm::rotate(fish_transform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 			fish_transform=glm::scale(fish_transform, glm::vec3(0.15f, 0.15f, 0.15f));
 			addFish("resources/fish.obj", "resources/fish.png", fish_transform);
+
+			// ui
+			Model* cube=new Model("resources/cube.obj", "resources/black.png");
+			glm::mat4 cube_transform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, -2.5f));
+			cube_transform=glm::scale(cube_transform, glm::vec3(0.4f, 0.4f, 0.4f));
+
+			glm::mat4 left_cube_transform=glm::translate(cube_transform, glm::vec3(-0.03f, 0.0f, 0.0f));
+			addToUi(*cube, left_cube_transform);
+
+			glm::mat4 up_cube_transform=glm::translate(cube_transform, glm::vec3(0.0f, 0.03f, 0.0f));
+			addToUi(*cube, up_cube_transform);
+
+			glm::mat4 right_cube_transform=glm::translate(cube_transform, glm::vec3(0.03f, 0.0f, 0.0f));
+			addToUi(*cube, right_cube_transform);
+
+			glm::mat4 down_cube_transform=glm::translate(cube_transform, glm::vec3(0.0f, -0.03f, 0.0f));
+			addToUi(*cube, down_cube_transform);
+		}
+
+		// animate entities based on status
+		void animateEntities(Status& status, Camera& camera, float time)
+		{
+			switch(status)
+			{
+				case WAIT:
+					draw_fish=false;
+					camera.stepForward();
+					rod->lowerRod();
+					rod->moveRod(time);
+					break;
+				case REEL:
+					draw_ui=true;
+					rod->shakeRod(time);
+					break;
+				case CAUGHT:
+					draw_ui=false;
+					draw_fish=true;
+					camera.stepBack();
+					rod->liftRod();
+					fish->spin(time);
+					break;
+				default:
+					break;
+			}
 		}
 
 		// draw
@@ -283,90 +371,158 @@ class Scene
 				glUniform1f(time_loc, time);
 				entity.model->draw();
 			}
-		}
 
-		void drawFish(Shaders& still_shaders, Camera& camera)
-		{
-			glUseProgram(still_shaders.program);
-			glEnable(GL_DEPTH_TEST);
-
-			if(fish!=nullptr)
+			if(draw_fish)
 			{
-				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(fish->transform));
-				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				fish->model->draw();
+				glUseProgram(still_shaders.program);
+				glEnable(GL_DEPTH_TEST);
+
+				if(fish!=nullptr)
+				{
+					glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(fish->transform));
+					glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+					fish->model->draw();
+				}
+			}
+
+			if(draw_ui)
+			{
+				glUseProgram(still_shaders.program);
+				glEnable(GL_DEPTH_TEST);
+
+				for(Entity& cube:ui)
+				{
+					glUniformMatrix4fv(animated_transform_loc, 1, GL_FALSE, glm::value_ptr(cube.transform));
+					glUniformMatrix4fv(animated_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+					cube.model->draw();
+				}
 			}
 		}
 
 		~Scene()
 		{
+			for(Entity& entity:still_entities) delete entity.model;
 			still_entities.clear();
+			for(Entity& entity:animated_entities) delete entity.model;
 			animated_entities.clear();
+			delete rod->model;
+			delete fish->model;
 		}
 };
 
+// assets
+struct Assets
+{
+	sf::Window* window;
+	Scene* scene;
+	Camera* camera;
+	sf::Clock* shader_clock;
+	sf::Clock* gameplay_clock;
 
+	enum Status status=WAIT;
+};
 
+// callback functions
+void handle(const sf::Event::Closed&, Assets& asset)
+{
+    asset.window->close();
+}
+
+void handle(const sf::Event::Resized& resized, Assets& asset)
+{
+	glViewport (0, 0, resized.size.x, resized.size.y);
+	asset.camera->updateProjection(resized.size.x, resized.size.y);
+}
+
+void handle(const sf::Event::MouseButtonPressed& mouseBP, Assets& asset)
+{
+	switch(asset.status)
+			{
+				case REEL:
+					asset.status=CAUGHT;
+					break;
+				case CAUGHT:
+					asset.status=WAIT;
+					break;
+				default:
+					break;
+			}
+}
+
+template <typename T>
+void handle(const T &, Assets& asset) {}
+
+// main
 int main()
 {
 	// setup
 	Setup setup;
-	sf::Window& window=*setup.window;
+
+	// state
+	Assets asset;
+	asset.window=setup.window;
 
 	// shaders
-	Shaders still_shaders("Tappa06/still.vert", "Tappa06/still.frag");
-	Shaders animated_shaders("Tappa06/animated.vert", "Tappa06/animated.frag");
-
+	Shaders still_shaders("Tappa07/still.vert", "Tappa07/still.frag");
+	Shaders animated_shaders("Tappa07/animated.vert", "Tappa07/animated.frag");
 	// creating the scene
-	Scene scene(still_shaders, animated_shaders);
-	scene.fill();
+	asset.scene=new Scene(still_shaders, animated_shaders);
+	asset.scene->fill();
 
-	// creating the cameras
-	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
-	Camera fish_camera(glm::vec3(0.0f, 0.4f, -2.2f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
+	// creating the camera
+	asset.camera=new Camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, asset.window->getSize().x, asset.window->getSize().y);
 
-	// clock
-	sf::Clock clock;
-	float time;
+	// clocks
+	asset.shader_clock=new sf::Clock();
+	asset.gameplay_clock=new sf::Clock();
+	float shader_time;
+	float gameplay_time;
+
+	// for randomness
+	srand(std::time(0));
+	int rand=0;
 
 	// main loop
-	bool running=true;
-	while(running)
+	while(asset.window->isOpen())
 	{
-		while(const std::optional event=window.pollEvent())
+		// event handling
+		asset.window->handleEvents([&](const auto &event) { handle(event, asset); });
+
+		// time
+		shader_time=asset.shader_clock->getElapsedTime().asSeconds();
+		gameplay_time=asset.gameplay_clock->getElapsedTime().asSeconds();
+
+		// WAIT to REEL control
+		if(asset.status==WAIT)
 		{
-			if(event->is<sf::Event::Closed>())
-				running = false;
-			else if(const auto* resized = event->getIf<sf::Event::Resized>())
+			if(rand<=0)
 			{
-				glViewport (0, 0, resized->size.x, resized->size.y);
-				camera.updateProjection(resized->size.x, resized->size.y);
+				rand=(std::rand()%5)+1;
+				asset.gameplay_clock->restart();
+				asset.scene->draw_fish=false;
+			}
+			else if(rand<floor(gameplay_time))
+			{
+				asset.status=REEL;
+				asset.scene->draw_ui=true;
+				rand=0;
 			}
 		}
 
-		time=clock.getElapsedTime().asSeconds();
-		if(time>20) clock.restart();
-
-		// rod movement tests
-		if(time<5) scene.rod->moveRod(time);
-		else if(time<10) scene.rod->shakeRod(time);
-		else if(time<15) scene.rod->liftRod();
-		else if(time>15) scene.rod->lowerRod();
+		// entities animated based on current status
+		asset.scene->animateEntities(asset.status, *asset.camera, shader_time);
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		// scene.draw(still_shaders, animated_shaders, camera, time);
 
-		// fish movement test
-		if(time>10 && time<15)
+		if(asset.status==CAUGHT)
 		{
-			scene.fish->spin(time);
-			scene.draw(still_shaders, animated_shaders, fish_camera, time);
-			scene.drawFish(still_shaders, fish_camera);
+			asset.scene->draw_ui=false;
+			asset.scene->draw_fish=true;
 		}
-		else scene.draw(still_shaders, animated_shaders, camera, time);
+		asset.scene->draw(still_shaders, animated_shaders, *asset.camera, shader_time);
 
-		window.display();
+		asset.window->display();
 	}
 	return 0;
 }

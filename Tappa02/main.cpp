@@ -79,26 +79,26 @@ class Scene
 		GLint transform_loc;
 
 	public:
+		// constructor
 		Scene(Shaders& shaders)
 		{
 			transform_loc=glGetUniformLocation(shaders.program, "transform");
 		}
 
-		void addEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
+		// add entities
+		void addEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
 		{
 			Model* model=new Model(objPath, texturePath);
 			entities.push_back({model, transform});
 		}
-
 		void addEntity(Model& model, glm::mat4 transform)
 		{
 			entities.push_back({&model, transform});
 		}
 
+		// draw
 		void draw()
 		{
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			
 			for(Entity entity:entities)
 			{
 				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
@@ -150,7 +150,8 @@ int main()
 				glViewport (0, 0, resized->size.x, resized->size.y);
 		}
 
-		// drawing and displaying the scene
+		// clear - draw - display
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		scene.draw();
 		window.display();
 	}

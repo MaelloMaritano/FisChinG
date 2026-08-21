@@ -114,6 +114,7 @@ class Scene
 		GLint view_projection_loc;
 
 	public:
+		// constructor
 		Scene(Shaders& shaders)
 		{
 			glUniform1i(glGetUniformLocation(shaders.program, "tex"), 0);
@@ -122,7 +123,8 @@ class Scene
 			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
 		}
 
-		void addEntity(std:: string objPath, std::string texturePath, glm::mat4 transform)
+		// add entities
+		void addEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
 		{
 			Model* model=new Model(objPath, texturePath);
 			entities.push_back({model, transform});
@@ -132,6 +134,14 @@ class Scene
 			entities.push_back({&model, transform});
 		}
 
+		// to add all needed entities
+		void fill()
+		{
+			addEntity("resources/sky.obj", "resources/god.png", glm::mat4(1.0f));
+			addEntity("resources/lake.obj", "resources/lake.png", glm::mat4(1.0f));
+		}
+
+		// draw
 		void draw(Camera& camera)
 		{
 			for(Entity& entity:entities)
@@ -141,6 +151,7 @@ class Scene
 				entity.model->draw();
 			}
 		}
+
 		~Scene()
 		{
 			entities.clear();
@@ -159,14 +170,9 @@ int main()
 
 	// creating the scene
 	Scene scene(shaders);
+	scene.fill();
 
-	Model sky("resources/sky.obj", "resources/god.png");
-	scene.addEntity(sky, glm::mat4(1.0f));
-
-	Model env("resources/lake.obj", "resources/lake.png");
-	scene.addEntity(env, glm::mat4(1.0f));
-
-	Camera camera(glm::vec3(0.0f, 0.3f, -2.5f), 0.0f, 0.0f, window.getSize().x, window.getSize().y);
+	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
 
 	glEnable(GL_DEPTH_TEST);
 
