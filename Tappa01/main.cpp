@@ -9,10 +9,10 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
-#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 
 struct Setup
 {
@@ -69,11 +69,11 @@ struct Model
 	Model(const std::string& objPath, const std::string& texturePath)
 	{
 		// opening file
-		std::ifstream file(path);
+		std::ifstream file(objPath);
 		if(!file.is_open())
 		{
-			std::cerr<<"Failure: could not open "<<path<<"."<<std::endl;
-			exit(1);
+			std::cerr<<"Failure: could not open "<<objPath<<"."<<std::endl;
+			return;
 		}
 
 		// info to recover from parsing
@@ -162,7 +162,7 @@ struct Model
 		vbo=0;
 		glGenBuffers(1, &vbo);
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER, faces.size()*sizeof(float), faces.data(), GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
 		//VAO
 		vao=0;
@@ -181,26 +181,23 @@ struct Model
 
 		// texture
 		sf::Image image;
-		if(!image.loadFromFile(path))
+		if(!image.loadFromFile(texturePath))
 		{
-			std::cerr<<"Failure: could not load texture image"<<path<<"."<<std::endl;
-			return 0;
+			std::cerr<<"Failure: could not load texture image"<<texturePath<<"."<<std::endl;
+			return;
 		}
 
-		GLuint textureID;
-		glGenTextures(1, &textureID);
-		glBindTexture(GL_TEXTURE_2D, textureID);
-
+		glGenTextures(1, &texture);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 		sf::Vector2u size=image.getSize();
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
-
-		return textureID;
 	}
 
-	void draw()
+	void draw() const
 	{
 		// apply texture
 		glActiveTexture(GL_TEXTURE0);
@@ -220,25 +217,6 @@ struct Model
 		if(vbo) glDeleteBuffers(1, &vbo);
 		if(texture) glDeleteTextures(1, &texture);
 	}
-}
-
-struct Scene
-{
-	GLint transform_loc;
-
-	Scene(const Shaders& shaders)
-	{
-		transform_loc=glGetUniformLocation(shaders.program, "transform");
-	}
-
-	void draw(const Model& model, glm::mat4 transform, const Shaders& shaders)
-	{
-		glEnable(GL_DEPTH_TEST);
-		glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(transform));
-		model.draw();
-	}
-
-	~Scene() {}
 };
 
 struct Shaders
@@ -305,6 +283,25 @@ struct Shaders
 	}
 };
 
+struct Scene
+{
+	GLint transform_loc;
+
+	Scene(const Shaders& shaders)
+	{
+		transform_loc=glGetUniformLocation(shaders.program, "transform");
+	}
+
+	void draw(const Model& model, glm::mat4 transform) const
+	{
+		glEnable(GL_DEPTH_TEST);
+		glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(transform));
+		model.draw();
+	}
+
+	~Scene() {}
+};
+
 // main
 int main()
 {
@@ -335,7 +332,7 @@ int main()
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		scene.draw(fish, transform, shaders);
+		scene.draw(fish, transform);
 		window.display();
 	}
 	return 0;
