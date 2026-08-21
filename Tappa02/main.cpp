@@ -97,7 +97,7 @@ class Scene
 {
 	private:
 		std::unordered_map<std::string, Entity> entities;
-		
+
 		GLint transform_loc;
 
 	public:
@@ -150,7 +150,6 @@ int main()
 	// shaders
 	Shaders shaders("Tappa02/vertex.vert", "Tappa02/fragment.frag");
 	glUseProgram(shaders.program);
-	glUniform1i(glGetUniformLocation(shaders.program, "tex"), 0);
 
 	// resources and scene setup
 	ResourcesManager resources;

@@ -18,12 +18,6 @@
 #include "../include/hotshaders.hh"
 #include "../include/model.hh"
 
-struct Entity
-{
-	Model* model;
-	glm::mat4 transform;
-};
-
 class Setup
 {
 	public:
@@ -71,6 +65,29 @@ class Setup
 		}
 };
 
+class ResourcesManager
+{
+	private:
+		std::string dirname="resources/";
+		std::unordered_map<std::string, Model*> models;
+
+	public:
+		Model& loadModel(const std::string& objName, const std::string& textureName)
+		{
+			auto model_iterator=models.find(objName);
+			if(model_iterator!=models.end()) return *(model_iterator->second);
+
+			Model* model=new Model(dirname+objName, dirname+textureName);
+			models[objName]=model;
+			return *model;
+		}
+
+		~ResourcesManager()
+		{
+			for(auto& [name, model]:models) delete model;
+		}
+};
+
 class Camera
 {
 	public:
@@ -105,11 +122,17 @@ class Camera
 		}
 };
 
+struct Entity
+{
+	const Model* model;
+	glm::mat4 transform;
+};
+
 class Scene
 {
-	public:
-		std::vector<Entity> entities;
 	private:
+		std::unordered_map<std::string, Entity> entities;
+		
 		GLint transform_loc;
 		GLint view_projection_loc;
 
@@ -117,46 +140,35 @@ class Scene
 		// constructor
 		Scene(Shaders& shaders)
 		{
-			glUniform1i(glGetUniformLocation(shaders.program, "tex"), 0);
-
 			transform_loc=glGetUniformLocation(shaders.program, "transform");
 			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
 		}
 
-		// add entities
-		void addEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
+		// add entity
+		void addEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
 		{
-			Model* model=new Model(objPath, texturePath);
-			entities.push_back({model, transform});
-		}
-		void addEntity(Model& model, glm::mat4 transform)
-		{
-			entities.push_back({&model, transform});
-		}
-
-		// to add all needed entities
-		void fill()
-		{
-			addEntity("resources/sky.obj", "resources/god.png", glm::mat4(1.0f));
-			addEntity("resources/lake.obj", "resources/lake.png", glm::mat4(1.0f));
+			entities[entityName]=Entity({&model, transform});
 		}
 
 		// draw
-		void draw(Camera& camera)
+		void draw(Camera& camera) const
 		{
-			for(Entity& entity:entities)
+			glEnable(GL_DEPTH_TEST);
+
+			for(const auto& [name, entity]:entities)
 			{
 				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
 				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
 				entity.model->draw();
 			}
 		}
-
-		~Scene()
-		{
-			entities.clear();
-		}
 };
+
+void loadScene(ResourcesManager& resources, Scene& scene)
+{
+	scene.addEntity("sky", resources.loadModel("sky.obj", "god.png"), glm::mat4(1.0f));
+	scene.addEntity("lake", resources.loadModel("lake.obj", "lake.png"), glm::mat4(1.0f));
+}
 
 int main()
 {
@@ -168,9 +180,10 @@ int main()
 	Shaders shaders("Tappa03/vertex.vert", "Tappa03/fragment.frag");
 	glUseProgram(shaders.program);
 
-	// creating the scene
+	// resources and scene setup
+	ResourcesManager resources;
 	Scene scene(shaders);
-	scene.fill();
+	loadScene(resources, scene);
 
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
 
@@ -180,12 +193,13 @@ int main()
 	bool running=true;
 	while(running)
 	{
+		// event handling
 		while(const std::optional event=window.pollEvent())
 		{
-			if(event->is<sf::Event::Closed>()) running=false;
-			else if(const auto* resized = event->getIf<sf::Event::Resized>())
+			if(event->is<sf::Event::Closed>()) window.close();
+			else if(const auto* resized=event->getIf<sf::Event::Resized>())
 			{
-				glViewport (0, 0, resized->size.x, resized->size.y);
+				glViewport(0, 0, resized->size.x, resized->size.y);
 				camera.updateProjection(resized->size.x, resized->size.y);
 			}
 		}
