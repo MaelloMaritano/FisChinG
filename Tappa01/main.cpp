@@ -59,46 +59,45 @@ struct Setup
 	}
 };
 
-struct Scene
+struct Model
 {
-	std::vector<float> faces;
 	GLuint vbo;
 	GLuint vao;
+	GLuint texture;
 	int verticesCount;
 
-	Scene(const std::string& path)
+	Model(const std::string& objPath, const std::string& texturePath)
 	{
-		// LOADING MODEL FROM FILE
-
 		// opening file
 		std::ifstream file(path);
 		if(!file.is_open())
 		{
 			std::cerr<<"Failure: could not open "<<path<<"."<<std::endl;
 			exit(1);
-        }
+		}
 
 		// info to recover from parsing
-		std::vector<float> vertices;
+		std::vector<float> positions;
 		std::vector<float> normals;
-		std::vector<float> textcoords;
+		std::vector<float> textCoords;
+		std::vector<float> vertices;
 
 		// parsing lines
 		std::string line;
-		while(std::getline(file, line))
+		while (std::getline(file, line))
 		{
 			std::stringstream stream(line);
 			std::string prefix;
 			stream>>prefix;
 
-			// vertices
+			// positions
 			if(prefix=="v")
 			{
 				float x, y, z;
 				stream>>x>>y>>z;
-				vertices.push_back(x);
-				vertices.push_back(y);
-				vertices.push_back(z);
+				positions.push_back(x);
+				positions.push_back(y);
+				positions.push_back(z);
 			}
 
 			// normals
@@ -116,11 +115,11 @@ struct Scene
 			{
 				float u, v;
 				stream>>u>>v;
-				textcoords.push_back(u);
-				textcoords.push_back(v);
+				textCoords.push_back(u);
+				textCoords.push_back(v);
 			}
 
-			// faces
+			// combine vertices info
 			else if(prefix=="f")
 			{
 				int v1, vt1, vn1;
@@ -130,6 +129,12 @@ struct Scene
 				stream	>>v1>>slash>>vt1>>slash>>vn1
 						>>v2>>slash>>vt2>>slash>>vn2
 						>>v3>>slash>>vt3>>slash>>vn3;
+
+				if(stream.fail())
+				{
+					std::cerr<<"Failure: parsing failed on line "<<line<< std::endl;
+					exit(1);
+				}
 			
 				int v[]={(v1-1)*3, (v2-1)*3, (v3-1)*3};
 				int vn[]={(vn1-1)*3, (vn2-1)*3, (vn3-1)*3};
@@ -137,21 +142,21 @@ struct Scene
 				
 				for(int i=0; i<3; i++)
 				{
-					faces.push_back(vertices[v[i]]);
-					faces.push_back(vertices[v[i]+1]);
-					faces.push_back(vertices[v[i]+2]);
+					vertices.push_back(positions[v[i]]);
+					vertices.push_back(positions[v[i]+1]);
+					vertices.push_back(positions[v[i]+2]);
 
-					faces.push_back(normals[vn[i]]);
-					faces.push_back(normals[vn[i]+1]);
-					faces.push_back(normals[vn[i]+2]);
+					vertices.push_back(normals[vn[i]]);
+					vertices.push_back(normals[vn[i]+1]);
+					vertices.push_back(normals[vn[i]+2]);
 
-					faces.push_back(textcoords[vt[i]]);
-					faces.push_back(1.0f-textcoords[vt[i]+1]);
+					vertices.push_back(textCoords[vt[i]]);
+					vertices.push_back(1.0f-textCoords[vt[i]+1]);
 				}
 			}
 		}
 		// save vertex quantity
-		verticesCount=faces.size()/8;
+		verticesCount=vertices.size()/8;
 
 		//VBO
 		vbo=0;
@@ -173,36 +178,71 @@ struct Scene
 		// texture coordinates
 		glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, AttribSize, (void*)(6*sizeof(float)));
 		glEnableVertexAttribArray (2);
+
+		// texture
+		sf::Image image;
+		if(!image.loadFromFile(path))
+		{
+			std::cerr<<"Failure: could not load texture image"<<path<<"."<<std::endl;
+			return 0;
+		}
+
+		GLuint textureID;
+		glGenTextures(1, &textureID);
+		glBindTexture(GL_TEXTURE_2D, textureID);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		sf::Vector2u size=image.getSize();
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
+
+		return textureID;
+	}
+
+	void draw()
+	{
+		// apply texture
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, texture);
+		
+		// draw triangles
+		glBindVertexArray(vao);
+		glDrawArrays(GL_TRIANGLES, 0, verticesCount);
+
+		// clean
+		glBindVertexArray(0);
+	}
+
+	~Model()
+	{
+		if(vao) glDeleteVertexArrays(1, &vao);
+		if(vbo) glDeleteBuffers(1, &vbo);
+		if(texture) glDeleteTextures(1, &texture);
+	}
+}
+
+struct Scene
+{
+	GLint transform_loc;
+
+	Scene(const Shaders& shaders)
+	{
+		transform_loc=glGetUniformLocation(shaders.program, "transform");
+	}
+
+	void draw(const Model& model, glm::mat4 transform, const Shaders& shaders)
+	{
+		glEnable(GL_DEPTH_TEST);
+		glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(transform));
+		model.draw();
 	}
 
 	~Scene()
 	{
-		glDeleteVertexArrays (1, &vao);
-		glDeleteBuffers (1, &vbo);
+
 	}
 };
-
-GLuint loadTexture(const std::string& path)
-{
-	sf::Image image;
-	if(!image.loadFromFile(path))
-	{
-		std::cerr<<"Failure: could not load texture image"<<path<<"."<<std::endl;
-		return 0;
-	}
-
-	GLuint textureID;
-	glGenTextures(1, &textureID);
-	glBindTexture(GL_TEXTURE_2D, textureID);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	sf::Vector2u size=image.getSize();
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
-
-	return textureID;
-}
 
 struct Shaders
 {
@@ -268,55 +308,38 @@ struct Shaders
 	}
 };
 
-void draw(Scene& scene, Shaders& shaders)
-{
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glDrawArrays(GL_TRIANGLES, 0, scene.verticesCount);
-}
-
-
+// main
 int main()
 {
+	// setup
 	Setup setup;
 	sf::Window& window=*setup.window;
-
-	// model
-	std::string modelPath="resources/fish.obj";
-	Scene scene(modelPath);
-
-	// texture
-	std::string texturePath="resources/fish.png";
-	GLuint texture=loadTexture(texturePath);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, texture);
 
 	// shaders
 	Shaders shaders;
 	glUseProgram(shaders.program);
 	glBindVertexArray(scene.vao);
 
-	glEnable(GL_DEPTH_TEST);
+	// scene
+	Scene scene(shaders);
+	// fish model
+	Model fish("resources/fish.obj", "resources/fish.png");
+	// rotate fish model
+	glm::mat4 transform=glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-	// loop
-	bool running=true;
-	while(running)
+	// main loop
+	while(window.isOpen())
 	{
+		// event handling
 		while(const std::optional event=window.pollEvent())
 		{
-			if(event->is<sf::Event::Closed>())
-				running=false;
-			else if(const auto* resized=event->getIf<sf::Event::Resized>())
-				glViewport(0, 0, resized->size.x, resized->size.y);
+			if(event->is<sf::Event::Closed>()) window.close();
+			else if(const auto* resized=event->getIf<sf::Event::Resized>()) glViewport(0, 0, resized->size.x, resized->size.y);
 		}
 
-		// rotate model
-		glm::mat4 transform=glm::mat4(1.0f);
-        transform=glm::rotate(transform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        GLint transform_loc=glGetUniformLocation(shaders.program, "transform");
-        glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(transform));
-
-		draw(scene, shaders);
-
+		// clear - draw - display
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		scene.draw(fish, transform, shaders);
 		window.display();
 	}
 	return 0;

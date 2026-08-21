@@ -19,13 +19,6 @@ class Model
 			loadTexture(texturePath);
 		}
 
-		~Model()
-		{
-			if(vao) glDeleteVertexArrays(1, &vao);
-			if(vbo) glDeleteBuffers(1, &vbo);
-       		if(texture) glDeleteTextures(1, &texture);
-		}
-
 		void loadObj(std::string path)
 		{
 			// opening file
@@ -178,5 +171,12 @@ class Model
 
 			// clean
 			glBindVertexArray(0);
+		}
+
+		~Model()
+		{
+			if(vao) glDeleteVertexArrays(1, &vao);
+			if(vbo) glDeleteBuffers(1, &vbo);
+			if(texture) glDeleteTextures(1, &texture);
 		}
 };

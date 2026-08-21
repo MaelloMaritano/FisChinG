@@ -80,7 +80,7 @@ class Scene
 
 	public:
 		// constructor
-		Scene(Shaders& shaders)
+		Scene(const Shaders& shaders)
 		{
 			transform_loc=glGetUniformLocation(shaders.program, "transform");
 		}
