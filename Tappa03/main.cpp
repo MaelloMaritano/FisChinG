@@ -190,8 +190,7 @@ int main()
 	glEnable(GL_DEPTH_TEST);
 
 	// main loop
-	bool running=true;
-	while(running)
+	while(window.isOpen())
 	{
 		// event handling
 		while(const std::optional event=window.pollEvent())
