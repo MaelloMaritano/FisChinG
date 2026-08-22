@@ -133,26 +133,20 @@ class Scene
 	private:
 		std::vector<Entity> still_entities;
 		std::vector<Entity> animated_entities;
-	
-		GLint still_transform_loc;
-		GLint still_view_projection_loc;
 
-		GLint animated_transform_loc;
-		GLint animated_view_projection_loc;
-		GLint time_loc;
+		GLint transform_loc;
+		GLint view_projection_loc;
+		GLint offset_loc;
+		float uv_timer=0.0f;
+		float uv_offset=0.0f;
 
 	public:
 		// constructor
-		Scene(Shaders& still_shaders, Shaders& animated_shaders)
+		Scene(Shaders& shaders)
 		{
-			// still
-			still_transform_loc=glGetUniformLocation(still_shaders.program, "transform");
-			still_view_projection_loc=glGetUniformLocation(still_shaders.program, "view_projection");
-
-			// animated
-			animated_transform_loc=glGetUniformLocation(animated_shaders.program, "transform");
-			animated_view_projection_loc=glGetUniformLocation(animated_shaders.program, "view_projection");
-			offset_loc=glGetUniformLocation(animated_shaders.program, "offset");
+			transform_loc=glGetUniformLocation(shaders.program, "transform");
+			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
+			offset_loc=glGetUniformLocation(shaders.program, "offset");
 		}
 
 		// add entities
@@ -169,33 +163,33 @@ class Scene
 		void update(float delta_time)
 		{
 			uv_timer+=delta_time;
-			if(uv_timer>=0.25f)
+			if(uv_timer>=1.0f)
 			{
-				uv_timer-=0.25f;
+				uv_timer=0.0f;
 				uv_offset+=0.001f;
+				uv_offset*=-1.0f;
 			}
 		}
 
 		// draw
-		void draw(Shaders& still_shaders, Shaders& animated_shaders, Camera& camera) const
+		void draw(Shaders& shaders, Camera& camera)
 		{
 			glEnable(GL_DEPTH_TEST);
-			glUseProgram(still_shaders.program);
+			glUseProgram(shaders.program);
 
 			for(Entity& entity:still_entities)
 			{
-				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				glUniform1f(offset_loc, 0.0f);
 				entity.model->draw();
 			}
 
-			glUseProgram(animated_shaders.program);
-
 			for(Entity& entity:animated_entities)
 			{
-				glUniformMatrix4fv(animated_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(animated_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				glUniform1f(offset_loc, std::sin(uv_offset));
+				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				glUniform1f(offset_loc, uv_offset);
 				entity.model->draw();
 			}
 		}
@@ -217,12 +211,11 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders still_shaders("Tappa04/still.vert", "Tappa04/still.frag");
-	Shaders animated_shaders("Tappa04/animated.vert", "Tappa04/animated.frag");
+	Shaders shaders("Tappa04/vertex.vert", "Tappa04/fragment.frag");
 
 	// resources and scene setup
 	ResourcesManager resources;
-	Scene scene(still_shaders, animated_shaders);
+	Scene scene(shaders);
 	loadScene(resources, scene);
 
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
@@ -250,7 +243,7 @@ int main()
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		scene.update(delta_time);
-		scene.draw(still_shaders, animated_shaders, camera);
+		scene.draw(shaders, camera);
 		window.display();
 	}
 	return 0;

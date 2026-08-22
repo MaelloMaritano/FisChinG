@@ -151,14 +151,14 @@ class Scene
 		}
 
 		// draw
-		void draw(const Camera& camera) const
+		void draw(const Camera& camera)
 		{
 			glEnable(GL_DEPTH_TEST);
 
 			for(Entity& entity:entities)
 			{
-				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
 				entity.model->draw();
 			}
 		}
@@ -186,8 +186,6 @@ int main()
 	loadScene(resources, scene);
 
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
-
-	glEnable(GL_DEPTH_TEST);
 
 	// main loop
 	while(window.isOpen())

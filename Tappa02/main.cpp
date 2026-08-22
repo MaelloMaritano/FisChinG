@@ -114,11 +114,11 @@ class Scene
 		}
 		
 		// draw
-		void draw() const
+		void draw()
 		{
 			glEnable(GL_DEPTH_TEST);
 
-			for(const auto& [name, entity]:entities)
+			for(Entity& entity:entities)
 			{
 				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
 				entity.model->draw();

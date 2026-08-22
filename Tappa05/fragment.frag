@@ -4,13 +4,15 @@ in vec3 interpolated_normal;
 in vec2 texture_coordinates;
 
 uniform sampler2D tex; // texture
+uniform float offset;
 
 out vec4 fragment_color;
 
 void main()
 {
 	// texture
-	vec4 texture_color=texture(tex, texture_coordinates);
+	vec2 animated_uv=texture_coordinates+vec2(offset, offset);
+	vec4 texture_color=texture(tex, animated_uv);
 
 	// light
 	vec3 light_direction=normalize(vec3(1.0, 1.0, -1.0)); // main light

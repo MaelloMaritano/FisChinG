@@ -130,15 +130,21 @@ class Camera
 class IBehavior
 {
 	public:
-		virtual void update(Entity& entity, float time);
+		virtual glm::mat4 update(float delta_time)=0;
 		virtual ~IBehavior()=default;
 };
 
 struct Entity
 {
-	Model* model;
+	const Model* model;
 	glm::mat4 transform;
 	IBehavior* behavior=nullptr;
+
+	Entity(const Model* new_model, glm::mat4 new_transform)
+	{
+		model=new_model;
+		transform=new_transform;
+	}
 
 	// to avoid behavior getting deleted when Entity vector in Scene is reallocated
 	Entity(Entity&& other) noexcept
@@ -173,7 +179,7 @@ struct Entity
 	}
 	void update(float delta_time)
 	{
-		if(behavior!=nullptr) behavior->update(*this, delta_time);
+		if(behavior!=nullptr) transform=behavior->update(delta_time);
 	}
 
 	~Entity()
@@ -189,7 +195,8 @@ enum RodState
 	SHAKING,
 	LIFTING,
 	LIFTED,
-	LOWERING
+	LOWERING,
+	LOWERED
 };
 
 class RodBehavior:public IBehavior
@@ -200,7 +207,7 @@ class RodBehavior:public IBehavior
 		float timer=0.0f;
 
 		// swaying
-		const float sway_step_time=0.25f; //time between updates
+		const float sway_step_time=1.0f; //time between updates
 		float sway_angle=0.0f;
 		float sway_direction=1.0f; // 1.0f or -1.0f
 
@@ -211,7 +218,7 @@ class RodBehavior:public IBehavior
 
 		// lifting and lowering
 		const float lift_step_time=0.25f;
-		const float lift_step_amount=0.5f;
+		const float lift_step_amount=0.25f;
 		float lift_progress=0.0f;
 
 		// base
@@ -219,7 +226,7 @@ class RodBehavior:public IBehavior
 		glm::vec3 base_rotation{0.0f};
 
 	public:
-		void update(Entity& rod, float delta_time) override
+		glm::mat4 update(float delta_time)
 		{
 			timer+=delta_time;
 
@@ -229,15 +236,15 @@ class RodBehavior:public IBehavior
 					if(timer>=sway_step_time)
 					{
 						timer=0.0f;
-						sway_angle=glm::clamp(sway_angle+sway_direction*0.5f, -0.5f, 0.5f);
-						if(sway_angle<=-0.5f || sway_angle>=0.5f) sway_direction*=-1.0f;
+						sway_angle=glm::clamp(sway_angle+sway_direction*1.0f, -1.0f, 1.0f);
+						if(sway_angle<=-1.0f || sway_angle>=1.0f) sway_direction*=-1.0f;
 					}
 					break;
 				case SHAKING:
 					if(timer>=shake_step_time)
 					{
 						timer=0.0f;
-						shake_offset=glm::vec3(0.02f*shake_direction, 0.015f*shake_direction, 0.0f);
+						shake_offset=glm::vec3(0.01f*shake_direction, 0.01f*shake_direction, 0.0f);
 						shake_direction*=-1.0f;
 					}
 					break;
@@ -246,7 +253,7 @@ class RodBehavior:public IBehavior
 					{
 						timer=0.0f;
 						lift_progress=glm::clamp(lift_progress+lift_step_amount, 0.0f, 1.0f);
-						if(lift_progress>=1.0f) state=LIFTED;
+						if(lift_progress>=1.0f) setState(LIFTED);
 					}
 					break;
 				case LOWERING:
@@ -254,8 +261,11 @@ class RodBehavior:public IBehavior
 					{
 						timer=0.0f;
 						lift_progress=glm::clamp(lift_progress-lift_step_amount, 0.0f, 1.0f);
-						if(lift_progress<=0.0f) state=SWAYING;
+						if(lift_progress<=0.0f) setState(LOWERED);
 					}
+					break;
+				case LOWERED:
+					setState(SWAYING);
 					break;
 				default:
 					break;
@@ -279,7 +289,7 @@ class RodBehavior:public IBehavior
 			transform=glm::rotate(transform, glm::radians(current_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
 			transform=glm::rotate(transform, glm::radians(current_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 
-			rod.transform=transform;
+			return transform;
 		}
 
 		RodState getState()
@@ -288,8 +298,15 @@ class RodBehavior:public IBehavior
 		}
 		void setState(RodState new_state)
 		{
-			state=new_state;
-			timer=0.0f;
+			if(state!=new_state)
+			{
+				if(state==LIFTING && new_state!=LIFTED) return;
+				if(state==LIFTED && new_state!=LOWERING) return;
+				if(state==LOWERING && new_state!=LOWERED) return;
+
+				state=new_state;
+				timer=0.0f;
+			}
 		}
 };
 
@@ -300,28 +317,23 @@ class Scene
 	private:
 		std::vector<Entity> still_entities;
 		std::vector<Entity> animated_entities;
-	
-		GLint still_transform_loc;
-		GLint still_view_projection_loc;
 
-		GLint animated_transform_loc;
-		GLint animated_view_projection_loc;
+		GLint transform_loc;
+		GLint view_projection_loc;
 		GLint offset_loc;
-		float uv_timer;
-		float uv_offset;
+		float uv_timer=0.0f;
+		float uv_offset=0.0f;
 
 	public:
 		// constructor
-		Scene(Shaders& still_shaders, Shaders& animated_shaders)
+		Scene(Shaders& shaders)
 		{
-			// still
-			still_transform_loc=glGetUniformLocation(still_shaders.program, "transform");
-			still_view_projection_loc=glGetUniformLocation(still_shaders.program, "view_projection");
-
-			// animated
-			animated_transform_loc=glGetUniformLocation(animated_shaders.program, "transform");
-			animated_view_projection_loc=glGetUniformLocation(animated_shaders.program, "view_projection");
-			offset_loc=glGetUniformLocation(animated_shaders.program, "offset");
+			transform_loc=glGetUniformLocation(shaders.program, "transform");
+			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
+			offset_loc=glGetUniformLocation(shaders.program, "offset");
+			
+			still_entities.reserve(20);
+			animated_entities.reserve(20);
 		}
 
 		// add entities
@@ -343,33 +355,33 @@ class Scene
 			for(Entity& entity:animated_entities) entity.update(delta_time);
 
 			uv_timer+=delta_time;
-			if(uv_timer>=0.25f)
+			if(uv_timer>=0.9f)
 			{
-				uv_timer-=0.25f;
+				uv_timer=0.0f;
 				uv_offset+=0.001f;
+				uv_offset*=-1.0f;
 			}
 		}
 
 		// draw
-		void draw(Shaders& still_shaders, Shaders& animated_shaders, Camera& camera) const
+		void draw(Shaders& shaders, Camera& camera)
 		{
 			glEnable(GL_DEPTH_TEST);
-			glUseProgram(still_shaders.program);
+			glUseProgram(shaders.program);
 
 			for(Entity& entity:still_entities)
 			{
-				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				glUniform1f(offset_loc, 0.0f);
 				entity.model->draw();
 			}
 
-			glUseProgram(animated_shaders.program);
-
 			for(Entity& entity:animated_entities)
 			{
-				glUniformMatrix4fv(animated_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(animated_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				glUniform1f(offset_loc, std::sin(uv_offset));
+				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				glUniform1f(offset_loc, uv_offset);
 				entity.model->draw();
 			}
 		}
@@ -400,14 +412,13 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders still_shaders("Tappa04/still.vert", "Tappa04/still.frag");
-	Shaders animated_shaders("Tappa04/animated.vert", "Tappa04/animated.frag");
+	Shaders shaders("Tappa05/vertex.vert", "Tappa05/fragment.frag");
 
 	// resources and scene setup
 	ResourcesManager resources;
-	Scene scene(still_shaders, animated_shaders);
+	Scene scene(shaders);
 	loadScene(resources, scene);
-	RodBehavior* rod=loadRod(ResourcesManager& resources, Scene& scene);
+	RodBehavior* rod=loadRod(resources, scene);
 
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
 
@@ -434,19 +445,16 @@ int main()
 		timer+=delta_time;
 
 		// rod movement tests
-		if(timer<5 && rod->getState()!=SWAYING) rod->setState(SWAYING);
-		else if(timer<10 && rod->getState()!=SHAKING) rod->setState(SHAKING);
-		else if(timer<15 && rod->getState()!=LIFTING) rod->setState(LIFTING);
-		else if(timer>15 && rod->getState()!=LOWERING)
-		{
-			rod->setState(LOWERING);
-			timer=0.0f;
-		}
+		if(timer<5) rod->setState(SWAYING);
+		else if(timer<10) rod->setState(SHAKING);
+		else if(timer<15) rod->setState(LIFTING);
+		else if(timer>15) rod->setState(LOWERING);
+		if(timer>16) timer=0.0f;
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		scene.update(delta_time);
-		scene.draw(still_shaders, animated_shaders, camera);
+		scene.draw(shaders, camera);
 		window.display();
 	}
 	return 0;
