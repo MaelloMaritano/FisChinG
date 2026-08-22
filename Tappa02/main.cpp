@@ -96,7 +96,7 @@ struct Entity
 class Scene
 {
 	private:
-		std::unordered_map<std::string, Entity> entities;
+		std::vector<Entity> entities;
 
 		GLint transform_loc;
 
@@ -110,7 +110,7 @@ class Scene
 		// add entity
 		void addEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
 		{
-			entities[entityName]=Entity({&model, transform});
+			entities.push_back({&model, transform});
 		}
 		
 		// draw

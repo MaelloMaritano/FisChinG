@@ -90,16 +90,16 @@ class ResourcesManager
 
 class Camera
 {
-	public:
-		glm::mat4 view_matrix;
-		glm::mat4 projection_matrix;
-		glm::mat4 view_projection_matrix;
-		
+	private:
 		glm::vec3 position;
 		float phi_deg;
 		float theta_deg;
 
 	public:
+		glm::mat4 view_matrix;
+		glm::mat4 projection_matrix;
+		glm::mat4 view_projection_matrix;
+	
 		Camera(glm::vec3 position, float phi_deg, float theta_deg, float width, float height)
 		{
 			view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(phi_deg), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -131,7 +131,7 @@ struct Entity
 class Scene
 {
 	private:
-		std::unordered_map<std::string, Entity> entities;
+		std::vector<Entity> entities;
 		
 		GLint transform_loc;
 		GLint view_projection_loc;
@@ -147,18 +147,18 @@ class Scene
 		// add entity
 		void addEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
 		{
-			entities[entityName]=Entity({&model, transform});
+			entities.push_back({&model, transform});
 		}
 
 		// draw
-		void draw(Camera& camera) const
+		void draw(const Camera& camera) const
 		{
 			glEnable(GL_DEPTH_TEST);
 
-			for(const auto& [name, entity]:entities)
+			for(Entity& entity:entities)
 			{
-				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
 				entity.model->draw();
 			}
 		}

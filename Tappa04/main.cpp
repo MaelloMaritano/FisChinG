@@ -18,12 +18,6 @@
 #include "../include/hotshaders.hh"
 #include "../include/model.hh"
 
-struct Entity
-{
-	Model* model;
-	glm::mat4 transform;
-};
-
 class Setup
 {
 	public:
@@ -71,18 +65,41 @@ class Setup
 		}
 };
 
+class ResourcesManager
+{
+	private:
+		std::string dirname="resources/";
+		std::unordered_map<std::string, Model*> models;
+
+	public:
+		Model& loadModel(const std::string& objName, const std::string& textureName)
+		{
+			auto model_iterator=models.find(objName);
+			if(model_iterator!=models.end()) return *(model_iterator->second);
+
+			Model* model=new Model(dirname+objName, dirname+textureName);
+			models[objName]=model;
+			return *model;
+		}
+
+		~ResourcesManager()
+		{
+			for(auto& [name, model]:models) delete model;
+		}
+};
+
 class Camera
 {
-	public:
-		glm::mat4 view_matrix;
-		glm::mat4 projection_matrix;
-		glm::mat4 view_projection_matrix;
-		
+	private:
 		glm::vec3 position;
 		float phi_deg;
 		float theta_deg;
 
 	public:
+		glm::mat4 view_matrix;
+		glm::mat4 projection_matrix;
+		glm::mat4 view_projection_matrix;
+
 		Camera(glm::vec3 position, float phi_deg, float theta_deg, float width, float height)
 		{
 			view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(phi_deg), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -105,12 +122,18 @@ class Camera
 		}
 };
 
+struct Entity
+{
+	const Model* model;
+	glm::mat4 transform;
+};
+
 class Scene
 {
-	public:
+	private:
 		std::vector<Entity> still_entities;
 		std::vector<Entity> animated_entities;
-	private:
+	
 		GLint still_transform_loc;
 		GLint still_view_projection_loc;
 
@@ -129,49 +152,35 @@ class Scene
 			// animated
 			animated_transform_loc=glGetUniformLocation(animated_shaders.program, "transform");
 			animated_view_projection_loc=glGetUniformLocation(animated_shaders.program, "view_projection");
-			time_loc=glGetUniformLocation(animated_shaders.program, "time");
+			offset_loc=glGetUniformLocation(animated_shaders.program, "offset");
 		}
 
 		// add entities
-		void addStillEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
-		{
-			Model* model=new Model(objPath, texturePath);
-			still_entities.push_back({model, transform});
-		}
-		void addStillEntity(Model& model, glm::mat4 transform)
+		void addStillEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
 		{
 			still_entities.push_back({&model, transform});
 		}
-
-		void addAnimatedEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
-		{
-			Model* model=new Model(objPath, texturePath);
-			animated_entities.push_back({model, transform});
-		}
-		void addAnimatedEntity(Model& model, glm::mat4 transform)
+		void addAnimatedEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
 		{
 			animated_entities.push_back({&model, transform});
 		}
 
-		// to add all needed entities
-		void fill()
+		// update time
+		void update(float delta_time)
 		{
-			// sky
-			addAnimatedEntity("resources/sky.obj", "resources/god.png", glm::mat4(1.0f));
-			// environment
-			addStillEntity("resources/land.obj", "resources/lake.png", glm::mat4(1.0f));
-			// trees
-			addAnimatedEntity("resources/trees_background.obj", "resources/trees_bg.png", glm::mat4(1.0f));
-			addAnimatedEntity("resources/trees_foreground.obj", "resources/trees_fg.png", glm::mat4(1.0f));
-			// water
-			addAnimatedEntity("resources/water.obj", "resources/lake.png", glm::mat4(1.0f));
+			uv_timer+=delta_time;
+			if(uv_timer>=0.25f)
+			{
+				uv_timer-=0.25f;
+				uv_offset+=0.001f;
+			}
 		}
 
 		// draw
-		void draw(Shaders& still_shaders, Shaders& animated_shaders, Camera& camera, float time)
+		void draw(Shaders& still_shaders, Shaders& animated_shaders, Camera& camera) const
 		{
-			glUseProgram(still_shaders.program);
 			glEnable(GL_DEPTH_TEST);
+			glUseProgram(still_shaders.program);
 
 			for(Entity& entity:still_entities)
 			{
@@ -186,18 +195,20 @@ class Scene
 			{
 				glUniformMatrix4fv(animated_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
 				glUniformMatrix4fv(animated_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				glUniform1f(time_loc, time);
+				glUniform1f(offset_loc, std::sin(uv_offset));
 				entity.model->draw();
 			}
 		}
-		
-		~Scene()
-		{
-			still_entities.clear();
-		}
 };
 
-
+void loadScene(ResourcesManager& resources, Scene& scene)
+{
+	scene.addAnimatedEntity("sky", resources.loadModel("sky.obj", "god.png"), glm::mat4(1.0f));
+	scene.addStillEntity("land", resources.loadModel("land.obj", "lake.png"), glm::mat4(1.0f));
+	scene.addAnimatedEntity("trees_bg", resources.loadModel("trees_background.obj", "trees_bg.png"), glm::mat4(1.0f));
+	scene.addAnimatedEntity("trees_fg", resources.loadModel("trees_foreground.obj", "trees_fg.png"), glm::mat4(1.0f));
+	scene.addAnimatedEntity("water", resources.loadModel("water.obj", "lake.png"), glm::mat4(1.0f));
+}
 
 int main()
 {
@@ -209,34 +220,37 @@ int main()
 	Shaders still_shaders("Tappa04/still.vert", "Tappa04/still.frag");
 	Shaders animated_shaders("Tappa04/animated.vert", "Tappa04/animated.frag");
 
-	// creating the scene
+	// resources and scene setup
+	ResourcesManager resources;
 	Scene scene(still_shaders, animated_shaders);
-	scene.fill();
+	loadScene(resources, scene);
 
-	// creating the camera
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
 
 	// clock
 	sf::Clock clock;
+	float delta_time=0.0f; // since last update
 
 	// main loop
-	bool running=true;
-	while(running)
+	while(window.isOpen())
 	{
+		// event handling
 		while(const std::optional event=window.pollEvent())
 		{
-			if(event->is<sf::Event::Closed>())
-				running = false;
-			else if(const auto* resized = event->getIf<sf::Event::Resized>())
+			if(event->is<sf::Event::Closed>()) window.close();
+			else if(const auto* resized=event->getIf<sf::Event::Resized>())
 			{
-				glViewport (0, 0, resized->size.x, resized->size.y);
+				glViewport(0, 0, resized->size.x, resized->size.y);
 				camera.updateProjection(resized->size.x, resized->size.y);
 			}
 		}
 
+		delta_time=clock.restart().asSeconds();
+
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		scene.draw(still_shaders, animated_shaders, camera, clock.getElapsedTime().asSeconds());
+		scene.update(delta_time);
+		scene.draw(still_shaders, animated_shaders, camera);
 		window.display();
 	}
 	return 0;
