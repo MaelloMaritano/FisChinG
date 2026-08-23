@@ -90,6 +90,15 @@ class ResourcesManager
 		}
 };
 
+enum CameraState
+{
+	STILL,
+	BACKING,
+	BACK,
+	ADVANCING,
+	FORWARD
+};
+
 // camera
 class Camera
 {
@@ -102,18 +111,26 @@ class Camera
 		float phi_deg;
 		float theta_deg;
 
+		// for movement
+		CameraState state=STILL;
+		float timer=0.0f;
+		const float step_time=0.25f;
+		const float step_amount=0.25f;
+		float progress=0.0f;
+		bool back=false;
+
+		glm::vec3 base_position;
+		glm::vec3 base_rotation;
+
 	public:
 		Camera(glm::vec3 position, float phi_deg, float theta_deg, float width, float height)
 		{
+			base_position=position;
+			base_rotation=glm::vec3(theta_deg, phi_deg, 0.0f);
+
 			view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(phi_deg), glm::vec3(0.0f, 1.0f, 0.0f));
 			view_matrix=glm::rotate(view_matrix, glm::radians(theta_deg), glm::vec3(1.0f, 0.0f, 0.0f));
 			view_matrix=glm::translate(view_matrix, -position);
-
-			updateProjection(width, height);
-		}
-		Camera(glm::vec3 position, glm::vec3 target, float width, float height)
-		{
-			view_matrix=glm::lookAt(position, target, glm::vec3(0.0f, 1.0f, 0.0f));
 
 			updateProjection(width, height);
 		}
@@ -122,6 +139,67 @@ class Camera
 		{
 			projection_matrix=glm::perspective(glm::radians(50.0f), width/height, 0.1f, 100.0f);
 			view_projection_matrix=projection_matrix*view_matrix;
+		}
+
+		void update(float delta_time)
+		{
+			timer+=delta_time;
+
+			switch(state)
+			{
+				case STILL:
+					break;
+				case BACKING:
+					if(timer>=step_time)
+					{
+						timer=0.0f;
+						progress=glm::clamp(progress+step_amount, 0.0f, 1.0f);
+						if(progress>=1.0f) setState(BACK);
+					}
+					break;
+				case ADVANCING:
+					if(timer>=step_time)
+					{
+						timer=0.0f;
+						progress=glm::clamp(progress-step_amount, 0.0f, 1.0f);
+						if(progress<=0.0f) setState(FORWARD);
+					}
+					break;
+				case FORWARD:
+					setState(STILL);
+					break;
+				default:
+					break;
+			}
+
+			// apply transform changes
+			glm::vec3 current_position=base_position;
+				glm::vec3 current_rotation=base_rotation;
+
+				current_position.z+=0.2f*progress;
+
+				view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(current_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+				view_matrix=glm::rotate(view_matrix, glm::radians(current_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+				view_matrix=glm::translate(view_matrix, -current_position);
+
+				view_projection_matrix=projection_matrix*view_matrix;
+		}
+
+		CameraState getState()
+		{
+			return state;
+		}
+		void setState(CameraState new_state)
+		{
+			if(state!=new_state)
+			{
+				if(state==BACKING && new_state!=BACK) return;
+				if(state==BACK && new_state!=ADVANCING) return;
+				if(state==ADVANCING && new_state!=FORWARD) return;
+
+				state=new_state;
+				timer=0.0f;
+			}
 		}
 };
 
@@ -293,7 +371,7 @@ class FishBehavior:public IBehavior
 			if(timer>=step_time)
 			{
 				timer=0.0f;
-				fish->transform=glm::rotate(transform, glm::radians(22.5f), glm::vec3(0.0f, 1.0f, 0.0f));
+				fish->transform=glm::rotate(fish->transform, glm::radians(22.5f), glm::vec3(0.0f, 1.0f, 0.0f));
 			}
 		}
 		void show()
@@ -422,8 +500,8 @@ FishBehavior& loadFish(ResourcesManager& resources, Scene& scene)
 	glm::mat4 fish_transform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, -2.5f));
 	fish_transform=glm::rotate(fish_transform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	fish_transform=glm::scale(fish_transform, glm::vec3(0.15f, 0.15f, 0.15f));
-	Entity& fish=addStillEntity("fish", resources.loadModel("fish.obj", "fish.png"), fish_transform);
-	RodBehavior& fish_behavior=scene.addBehavior<FishBehavior>(fish);
+	Entity& fish=scene.addStillEntity("fish", resources.loadModel("fish.obj", "fish.png"), fish_transform);
+	FishBehavior& fish_behavior=scene.addBehavior<FishBehavior>(fish);
 	return fish_behavior;
 }
 
@@ -436,7 +514,7 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("../include/vertex.vert", "../include/fragment.frag");
+	Shaders shaders("Tappa06/vertex.vert", "Tappa06/fragment.frag");
 
 	// resources and scene setup
 	ResourcesManager resources;
@@ -473,8 +551,16 @@ int main()
 		// rod movement tests
 		if(timer<5) rod.setState(SWAYING);
 		else if(timer<10) rod.setState(SHAKING);
-		else if(timer<15) rod.setState(LIFTING);
-		else if(timer>15) rod.setState(LOWERING);
+		else if(timer<15)
+		{
+			rod.setState(LIFTING);
+			camera.setState(BACKING);
+		}
+		else if(timer>15)
+		{
+			rod.setState(LOWERING);
+			camera.setState(ADVANCING);
+		}
 		if(timer>16) timer=0.0f;
 
 		if(rod.getState()==LIFTED) fish.show();
@@ -484,7 +570,8 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		scene.update(delta_time);
-		scene.draw(still_shaders, animated_shaders, camera, time);
+		camera.update(delta_time);
+		scene.draw(shaders, camera);
 
 		window.display();
 	}
