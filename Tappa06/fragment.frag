@@ -4,16 +4,13 @@ in vec3 interpolated_normal;
 in vec2 texture_coordinates;
 
 uniform sampler2D tex; // texture
-uniform float time;
+uniform float offset;
 
 out vec4 fragment_color;
 
 void main()
 {
 	// texture
-	float fps=4.0;
-	float stepped_time=floor(time*fps)/fps;
-	float offset=sin(stepped_time)*0.001;
 	vec2 animated_uv=texture_coordinates+vec2(offset, offset);
 	vec4 texture_color=texture(tex, animated_uv);
 

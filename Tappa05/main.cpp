@@ -127,65 +127,19 @@ class Camera
 };
 
 // entities and behaviors
-class IBehavior
-{
-	public:
-		virtual glm::mat4 update(float delta_time)=0;
-		virtual ~IBehavior()=default;
-};
-
 struct Entity
 {
 	const Model* model;
 	glm::mat4 transform;
-	IBehavior* behavior=nullptr;
+};
 
-	Entity(const Model* new_model, glm::mat4 new_transform)
-	{
-		model=new_model;
-		transform=new_transform;
-	}
-
-	// to avoid behavior getting deleted when Entity vector in Scene is reallocated
-	Entity(Entity&& other) noexcept
-	{
-		delete behavior;
-		model=other.model;
-		transform=other.transform;
-		behavior=other.behavior;
-		other.behavior=nullptr;
-	}
-	Entity& operator=(Entity&& other) noexcept
-	{
-		if (this!=&other)
-		{
-			delete behavior;
-			model=other.model;
-			transform=other.transform;
-			behavior=other.behavior;
-			other.behavior=nullptr;
-		}
-		return *this;
-	}
-
-	template <typename T, typename ...Args>
-	T* setBehavior(Args&&... args)
-	{
-		if(behavior!=nullptr) delete behavior;
-
-		T* new_behavior=new T(std::forward<Args>(args)...);
-		behavior=new_behavior;
-		return new_behavior;
-	}
-	void update(float delta_time)
-	{
-		if(behavior!=nullptr) transform=behavior->update(delta_time);
-	}
-
-	~Entity()
-	{
-		delete behavior;
-	}
+class IBehavior
+{
+	private:
+		Entity* entity;
+	public:
+		virtual void update(float delta_time)=0;
+		virtual ~IBehavior()=default;
 };
 
 // rod state and behavior
@@ -202,8 +156,8 @@ enum RodState
 class RodBehavior:public IBehavior
 {
 	private:
+		Entity* rod=nullptr;
 		RodState state=SWAYING;
-
 		float timer=0.0f;
 
 		// swaying
@@ -226,8 +180,15 @@ class RodBehavior:public IBehavior
 		glm::vec3 base_rotation{0.0f};
 
 	public:
-		glm::mat4 update(float delta_time)
+		RodBehavior(Entity& new_rod)
 		{
+			rod=&new_rod;
+		}
+
+		void update(float delta_time)
+		{
+			if(rod==nullptr) return;
+
 			timer+=delta_time;
 
 			switch(state)
@@ -289,7 +250,7 @@ class RodBehavior:public IBehavior
 			transform=glm::rotate(transform, glm::radians(current_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
 			transform=glm::rotate(transform, glm::radians(current_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
 
-			return transform;
+			rod->transform=transform;
 		}
 
 		RodState getState()
@@ -317,6 +278,7 @@ class Scene
 	private:
 		std::vector<Entity> still_entities;
 		std::vector<Entity> animated_entities;
+		std::vector<IBehavior*> behaviors;
 
 		GLint transform_loc;
 		GLint view_projection_loc;
@@ -334,6 +296,7 @@ class Scene
 			
 			still_entities.reserve(20);
 			animated_entities.reserve(20);
+			behaviors.reserve(10);
 		}
 
 		// add entities
@@ -348,11 +311,18 @@ class Scene
 			return animated_entities.back();
 		}
 
+		template <typename T>
+		T& addBehavior(Entity& entity)
+		{
+			T* behavior=new T(entity);
+			behaviors.push_back(behavior);
+			return *behavior;
+		}
+
 		// update time and behaviors
 		void update(float delta_time)
 		{
-			for(Entity& entity:still_entities) entity.update(delta_time);
-			for(Entity& entity:animated_entities) entity.update(delta_time);
+			for(IBehavior* behavior:behaviors) behavior->update(delta_time);
 
 			uv_timer+=delta_time;
 			if(uv_timer>=0.9f)
@@ -385,6 +355,11 @@ class Scene
 				entity.model->draw();
 			}
 		}
+
+		~Scene()
+		{
+			for(IBehavior* behavior:behaviors) delete behavior;
+		}
 };
 
 void loadScene(ResourcesManager& resources, Scene& scene)
@@ -396,10 +371,10 @@ void loadScene(ResourcesManager& resources, Scene& scene)
 	scene.addAnimatedEntity("water", resources.loadModel("water.obj", "lake.png"), glm::mat4(1.0f));
 }
 
-RodBehavior* loadRod(ResourcesManager& resources, Scene& scene)
+RodBehavior& loadRod(ResourcesManager& resources, Scene& scene)
 {
 	Entity& rod=scene.addStillEntity("rod", resources.loadModel("rod.obj", "rod.png"), glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.15f, -3.28f)));
-	RodBehavior* rod_behavior=rod.setBehavior<RodBehavior>();
+	RodBehavior& rod_behavior=scene.addBehavior<RodBehavior>(rod);
 	return rod_behavior;
 }
 
