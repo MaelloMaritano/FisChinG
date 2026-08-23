@@ -393,7 +393,7 @@ int main()
 	ResourcesManager resources;
 	Scene scene(shaders);
 	loadScene(resources, scene);
-	RodBehavior* rod=loadRod(resources, scene);
+	RodBehavior& rod=loadRod(resources, scene);
 
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
 
@@ -420,10 +420,10 @@ int main()
 		timer+=delta_time;
 
 		// rod movement tests
-		if(timer<5) rod->setState(SWAYING);
-		else if(timer<10) rod->setState(SHAKING);
-		else if(timer<15) rod->setState(LIFTING);
-		else if(timer>15) rod->setState(LOWERING);
+		if(timer<5) rod.setState(SWAYING);
+		else if(timer<10) rod.setState(SHAKING);
+		else if(timer<15) rod.setState(LIFTING);
+		else if(timer>15) rod.setState(LOWERING);
 		if(timer>16) timer=0.0f;
 
 		// clear - draw - display
