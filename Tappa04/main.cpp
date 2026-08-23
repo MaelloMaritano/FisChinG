@@ -211,7 +211,7 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("../include/vertex.vert", "../include/fragment.frag");
+	Shaders shaders("include/vertex.vert", "include/fragment.frag");
 
 	// resources and scene setup
 	ResourcesManager resources;

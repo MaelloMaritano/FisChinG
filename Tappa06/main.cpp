@@ -213,8 +213,6 @@ struct Entity
 
 class IBehavior
 {
-	private:
-		Entity* entity;
 	public:
 		virtual void update(float delta_time)=0;
 		virtual ~IBehavior()=default;
@@ -254,13 +252,15 @@ class RodBehavior:public IBehavior
 		float lift_progress=0.0f;
 
 		// base
-		glm::vec3 base_position=glm::vec3(-0.03f, -0.15f, -3.28f);
-		glm::vec3 base_rotation{0.0f};
+		glm::vec3 base_position;
+		glm::vec3 base_rotation;
 
 	public:
-		RodBehavior(Entity& new_rod)
+		RodBehavior(Entity& new_rod, glm::vec3 position, glm::vec3 rotation)
 		{
 			rod=&new_rod;
+			base_position=position;
+			base_rotation=rotation;
 		}
 
 		void update(float delta_time)
@@ -356,23 +356,41 @@ class FishBehavior:public IBehavior
 		Entity* fish=nullptr;
 		float timer=0.0f;
 		float step_time=0.3f;
+		float step_amount=0.125f;
+		float progress=0.0f;
+
+		// base
+		glm::vec3 base_position;
+		glm::vec3 base_rotation;
 
 	public:
-		FishBehavior(Entity& new_fish)
+		FishBehavior(Entity& new_fish, glm::vec3 position, glm::vec3 rotation)
 		{
 			fish=&new_fish;
+			base_position=position;
+			base_rotation=rotation;
 		}
 
 		void update(float delta_time)
 		{
-			if(fish==nullptr && !fish->show) return;
+			if(fish==nullptr || !fish->show) return;
 
 			timer+=delta_time;
 			if(timer>=step_time)
 			{
 				timer=0.0f;
-				fish->transform=glm::rotate(fish->transform, glm::radians(22.5f), glm::vec3(0.0f, 1.0f, 0.0f));
+				progress=progress+step_amount;
+				if(progress>=1.0f) progress-=1.0f;
 			}
+
+			glm::vec3 current_rotation=base_rotation;
+			current_rotation.y+=360.0f*progress;
+
+			glm::mat4 transform=glm::translate(glm::mat4(1.0f), base_position);
+			transform=glm::rotate(transform, glm::radians(current_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+			transform=glm::scale(transform, glm::vec3(0.15f, 0.15f, 0.15f)); // FIX
+			
+			fish->transform=transform;
 		}
 		void show()
 		{
@@ -423,9 +441,9 @@ class Scene
 		}
 
 		template <typename T>
-		T& addBehavior(Entity& entity)
+		T& addBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
 		{
-			T* behavior=new T(entity);
+			T* behavior=new T(entity, position, rotation);
 			behaviors.push_back(behavior);
 			return *behavior;
 		}
@@ -491,7 +509,7 @@ void loadScene(ResourcesManager& resources, Scene& scene)
 RodBehavior& loadRod(ResourcesManager& resources, Scene& scene)
 {
 	Entity& rod=scene.addStillEntity("rod", resources.loadModel("rod.obj", "rod.png"), glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.15f, -3.28f)));
-	RodBehavior& rod_behavior=scene.addBehavior<RodBehavior>(rod);
+	RodBehavior& rod_behavior=scene.addBehavior<RodBehavior>(rod, glm::vec3(-0.03f, -0.15f, -3.28f), glm::vec3(0.0f));
 	return rod_behavior;
 }
 
@@ -501,7 +519,7 @@ FishBehavior& loadFish(ResourcesManager& resources, Scene& scene)
 	fish_transform=glm::rotate(fish_transform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	fish_transform=glm::scale(fish_transform, glm::vec3(0.15f, 0.15f, 0.15f));
 	Entity& fish=scene.addStillEntity("fish", resources.loadModel("fish.obj", "fish.png"), fish_transform);
-	FishBehavior& fish_behavior=scene.addBehavior<FishBehavior>(fish);
+	FishBehavior& fish_behavior=scene.addBehavior<FishBehavior>(fish, glm::vec3(0.0f, 0.4f, -2.5f), glm::vec3(0.0f, 90.0f, 0.0f));
 	return fish_behavior;
 }
 
@@ -514,7 +532,7 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("../include/vertex.vert", "../include/fragment.frag");
+	Shaders shaders("include/vertex.vert", "include/fragment.frag");
 	
 	// resources and scene setup
 	ResourcesManager resources;
