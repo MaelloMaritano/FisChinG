@@ -387,7 +387,7 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("Tappa05/vertex.vert", "Tappa05/fragment.frag");
+	Shaders shaders("../include/vertex.vert", "../include/fragment.frag");
 
 	// resources and scene setup
 	ResourcesManager resources;

@@ -19,85 +19,7 @@
 #include "../include/hotshaders.hh"
 #include "../include/model.hh"
 
-// entities
-struct Entity
-{
-	Model* model;
-	glm::mat4 transform;
-};
-
-struct Rod:Entity
-{
-	bool left=true;
-	bool lifted=false;
-	float movementGuard=0;
-
-	void moveRod(float time)
-	{
-		if(time-movementGuard<0) movementGuard=time;
-		if(time-movementGuard>1)
-		{
-			movementGuard=time;
-			if(left) transform=glm::rotate(transform, glm::radians(0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
-			else transform=glm::rotate(transform, glm::radians(-0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
-			left=!left;
-		}
-	}
-
-	void shakeRod(float time)
-	{
-		if(time-movementGuard<0) movementGuard=time;
-		if(time-movementGuard>0.1f)
-		{
-			movementGuard=time;
-			if(left) transform=glm::translate(transform, glm::vec3(0.01f, 0.01f, 0.0f));
-			else transform=glm::translate(transform, glm::vec3(-0.01f, -0.01f, 0.0f));
-			left=!left;
-		}
-	}
-
-	void liftRod()
-	{
-		if(!lifted)
-		{
-			transform=glm::translate(transform, glm::vec3(0.0f, 0.45f, 0.0f));
-			transform=glm::rotate(transform, glm::radians(45.0f), glm::vec3(1.0f, -0.1f, 0.0f));
-			lifted=true;
-		}
-	}
-	void lowerRod()
-	{
-		if(lifted)
-		{
-			transform=glm::rotate(transform, glm::radians(-45.0f), glm::vec3(1.0f, -0.1f, 0.0f));
-			transform=glm::translate(transform, glm::vec3(0.0f, -0.45f, 0.0f));
-			lifted=false;
-		}
-	}
-};
-
-struct Fish:Entity
-{
-	float movementGuard=0;
-	void spin(float time)
-	{
-		if(time-movementGuard>0.3f)
-		{
-			movementGuard=time;
-			transform=glm::rotate(transform, glm::radians(22.5f), glm::vec3(0.0f, 1.0f, 0.0f));
-		}
-	}
-};
-
-// status
-enum Status
-{
-	WAIT,
-	REEL,
-	CAUGHT
-};
-
-// setup class
+// setup
 class Setup
 {
 	public:
@@ -463,8 +385,8 @@ int main()
 	asset.window=setup.window;
 
 	// shaders
-	Shaders still_shaders("Tappa07/still.vert", "Tappa07/still.frag");
-	Shaders animated_shaders("Tappa07/animated.vert", "Tappa07/animated.frag");
+	Shaders shaders("../include/vertex.vert", "../include/fragment.frag");
+
 	// creating the scene
 	asset.scene=new Scene(still_shaders, animated_shaders);
 	asset.scene->fill();
