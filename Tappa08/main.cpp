@@ -259,9 +259,9 @@ class RodBehavior:public IBehavior
 		glm::vec3 base_rotation;
 
 	public:
-		RodBehavior(Entity& new_rod, glm::vec3 position, glm::vec3 rotation)
+		RodBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
 		{
-			rod=&new_rod;
+			rod=&entity;
 			base_position=position;
 			base_rotation=rotation;
 		}
@@ -367,9 +367,9 @@ class FishBehavior:public IBehavior
 		glm::vec3 base_rotation;
 
 	public:
-		FishBehavior(Entity& new_fish, glm::vec3 position, glm::vec3 rotation)
+		FishBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
 		{
-			fish=&new_fish;
+			fish=&entity;
 			base_position=position;
 			base_rotation=rotation;
 		}
@@ -403,6 +403,35 @@ class FishBehavior:public IBehavior
 		{
 			fish->show=false;
 			progress=0.0f;
+		}
+};
+
+// button behavior
+class ButtonBehavior:public IBehavior
+{
+	private:
+		Entity* button=nullptr;
+
+		// base
+		glm::vec3 base_position;
+		glm::vec3 base_rotation;
+
+	public:
+		ButtonBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
+		{
+			button=&entity;
+			base_position=position;
+			base_rotation=rotation;
+		}
+
+		void update(float delta_time) {}
+		void show()
+		{
+			button->show=true;
+		}
+		void hide()
+		{
+			button->show=false;
 		}
 };
 
@@ -528,11 +557,51 @@ FishBehavior& loadFish(ResourcesManager& resources, Scene& scene)
 	return fish_behavior;
 }
 
+ButtonBehavior& loadBlackButton(ResourcesManager& resources, Scene& scene, glm::vec3 position)
+{
+	Entity& button_black=scene.addStillEntity("button_black", resources.loadModel("button.obj", "button_black.png"), glm::translate(glm::mat4(1.0f), position));
+	ButtonBehavior& button_black_behavior=scene.addBehavior<ButtonBehavior>(button_black, position, glm::vec3(0.0f));
+	return button_black_behavior;
+}
+
+std::vector<ButtonBehavior*> loadBlackButtons(ResourcesManager& resources, Scene& scene)
+{
+	float offset=0.08f;
+	ButtonBehavior& button_black_up=loadBlackButton(resources, scene, glm::vec3(0.0f, 0.36f+offset, -2.8f));
+	ButtonBehavior& button_black_right=loadBlackButton(resources, scene, glm::vec3(0.0f+offset, 0.36f, -2.8f));
+	ButtonBehavior& button_black_down=loadBlackButton(resources, scene, glm::vec3(0.0f, 0.36f-offset, -2.8f));
+	ButtonBehavior& button_black_left=loadBlackButton(resources, scene, glm::vec3(0.0f-offset, 0.36f, -2.8f));
+	return {&button_black_up, &button_black_right, &button_black_down, &button_black_left};
+}
+
+ButtonBehavior& loadButton(ResourcesManager& resources, Scene& scene, glm::vec3 position)
+{
+	glm::mat4 transform=glm::translate(glm::mat4(1.0f), position);
+	Entity& button=scene.addStillEntity("button_black", resources.loadModel("button.obj", "button_black.png"), glm::scale(transform, glm::vec3(1.1f, 1.1f, 1.1f)));
+	ButtonBehavior& button_behavior=scene.addBehavior<ButtonBehavior>(button, position, glm::vec3(0.0f));
+	return button_behavior;
+}
+
+std::vector<ButtonBehavior*> loadButtons(ResourcesManager& resources, Scene& scene)
+{
+	float offset=0.08f;
+	ButtonBehavior& button_up=loadButton(resources, scene, glm::vec3(0.0f, 0.36f+offset, -2.8f));
+	ButtonBehavior& button_right=loadButton(resources, scene, glm::vec3(0.0f+offset, 0.36f, -2.8f));
+	ButtonBehavior& button_down=loadButton(resources, scene, glm::vec3(0.0f, 0.36f-offset, -2.8f));
+	ButtonBehavior& button_left=loadButton(resources, scene, glm::vec3(0.0f-offset, 0.36f, -2.8f));
+	return {&button_up, &button_right, &button_down, &button_left};
+}
+
 
 // linked behaviors functions
 void fishLured(RodBehavior& rod)
 {
 	rod.setState(SHAKING);
+}
+void catchingFish(float& random_time, std::vector<ButtonBehavior*> black_buttons, std::vector<ButtonBehavior*> buttons)
+{
+	for(ButtonBehavior* button:black_buttons) button->show();
+	if(random_time!=-1) buttons[random_time]->show();
 }
 void liftRod(Camera& camera, RodBehavior& rod)
 {
@@ -571,6 +640,8 @@ int main()
 	loadScene(resources, scene);
 	RodBehavior& rod=loadRod(resources, scene);
 	FishBehavior& fish=loadFish(resources, scene);
+	std::vector<ButtonBehavior*> black_buttons=loadBlackButtons(resources, scene);
+	std::vector<ButtonBehavior*> buttons=loadBlackButtons(resources, scene);
 
 	// creating the cameras
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
@@ -608,6 +679,12 @@ int main()
 			random_time=0.0f;
 			fishLured(rod);
 		}
+
+		if(rod.getState()==SHAKING)
+		{
+			catchingFish(random_time, black_buttons, buttons);
+		}
+		else for(int i=0; i<4; i++) for(ButtonBehavior* button:black_buttons) button->hide();
 
 		if(rod.getState()==LIFTED) fish.show();
 		else fish.hide();

@@ -176,13 +176,15 @@ class RodBehavior:public IBehavior
 		float lift_progress=0.0f;
 
 		// base
-		glm::vec3 base_position=glm::vec3(-0.03f, -0.15f, -3.28f);
-		glm::vec3 base_rotation{0.0f};
+		glm::vec3 base_position;
+		glm::vec3 base_rotation;
 
 	public:
-		RodBehavior(Entity& new_rod)
+		RodBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
 		{
-			rod=&new_rod;
+			rod=&entity;
+			base_position=position;
+			base_rotation=rotation;
 		}
 
 		void update(float delta_time)
@@ -312,9 +314,9 @@ class Scene
 		}
 
 		template <typename T>
-		T& addBehavior(Entity& entity)
+		T& addBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
 		{
-			T* behavior=new T(entity);
+			T* behavior=new T(entity, position, rotation);
 			behaviors.push_back(behavior);
 			return *behavior;
 		}
@@ -374,7 +376,7 @@ void loadScene(ResourcesManager& resources, Scene& scene)
 RodBehavior& loadRod(ResourcesManager& resources, Scene& scene)
 {
 	Entity& rod=scene.addStillEntity("rod", resources.loadModel("rod.obj", "rod.png"), glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.15f, -3.28f)));
-	RodBehavior& rod_behavior=scene.addBehavior<RodBehavior>(rod);
+	RodBehavior& rod_behavior=scene.addBehavior<RodBehavior>(rod, glm::vec3(-0.03f, -0.15f, -3.28f), glm::vec3(0.0f));
 	return rod_behavior;
 }
 

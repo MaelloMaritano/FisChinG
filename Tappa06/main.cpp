@@ -256,9 +256,9 @@ class RodBehavior:public IBehavior
 		glm::vec3 base_rotation;
 
 	public:
-		RodBehavior(Entity& new_rod, glm::vec3 position, glm::vec3 rotation)
+		RodBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
 		{
-			rod=&new_rod;
+			rod=&entity;
 			base_position=position;
 			base_rotation=rotation;
 		}
@@ -348,7 +348,7 @@ class RodBehavior:public IBehavior
 			}
 		}
 };
-
+// 'ìè''è'è'è'è'è'è'èè'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'è'èè cit.Budino
 // fish behavior
 class FishBehavior:public IBehavior
 {
@@ -364,9 +364,9 @@ class FishBehavior:public IBehavior
 		glm::vec3 base_rotation;
 
 	public:
-		FishBehavior(Entity& new_fish, glm::vec3 position, glm::vec3 rotation)
+		FishBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
 		{
-			fish=&new_fish;
+			fish=&entity;
 			base_position=position;
 			base_rotation=rotation;
 		}
