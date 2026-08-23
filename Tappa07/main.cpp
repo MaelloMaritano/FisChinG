@@ -67,7 +67,40 @@ class Setup
 		}
 };
 
-// camera class
+// model manager
+class ResourcesManager
+{
+	private:
+		std::string dirname="resources/";
+		std::unordered_map<std::string, Model*> models;
+
+	public:
+		Model& loadModel(const std::string& objName, const std::string& textureName)
+		{
+			auto model_iterator=models.find(objName);
+			if(model_iterator!=models.end()) return *(model_iterator->second);
+
+			Model* model=new Model(dirname+objName, dirname+textureName);
+			models[objName]=model;
+			return *model;
+		}
+
+		~ResourcesManager()
+		{
+			for(auto& [name, model]:models) delete model;
+		}
+};
+
+// camera
+enum CameraState
+{
+	STILL,
+	BACKING,
+	BACK,
+	ADVANCING,
+	FORWARD
+};
+
 class Camera
 {
 	public:
@@ -79,20 +112,26 @@ class Camera
 		float phi_deg;
 		float theta_deg;
 
+		// for movement
+		CameraState state=STILL;
+		float timer=0.0f;
+		const float step_time=0.25f;
+		const float step_amount=0.25f;
+		float progress=0.0f;
 		bool back=false;
+
+		glm::vec3 base_position;
+		glm::vec3 base_rotation;
 
 	public:
 		Camera(glm::vec3 position, float phi_deg, float theta_deg, float width, float height)
 		{
+			base_position=position;
+			base_rotation=glm::vec3(theta_deg, phi_deg, 0.0f);
+
 			view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(phi_deg), glm::vec3(0.0f, 1.0f, 0.0f));
 			view_matrix=glm::rotate(view_matrix, glm::radians(theta_deg), glm::vec3(1.0f, 0.0f, 0.0f));
 			view_matrix=glm::translate(view_matrix, -position);
-
-			updateProjection(width, height);
-		}
-		Camera(glm::vec3 position, glm::vec3 target, float width, float height)
-		{
-			view_matrix=glm::lookAt(position, target, glm::vec3(0.0f, 1.0f, 0.0f));
 
 			updateProjection(width, height);
 		}
@@ -103,348 +142,439 @@ class Camera
 			view_projection_matrix=projection_matrix*view_matrix;
 		}
 
-		void stepBack()
+		void update(float delta_time)
 		{
-			if(!back)
+			timer+=delta_time;
+
+			switch(state)
 			{
-				view_matrix=glm::translate(view_matrix, glm::vec3(0.0f, 0.0f, -0.2f));
-				view_projection_matrix=projection_matrix*view_matrix;
-				back=true;
-			}
-		}
-		void stepForward()
-		{
-			if(back)
-			{
-				view_matrix=glm::translate(view_matrix, glm::vec3(0.0f, 0.0f, +0.2f));
-				view_projection_matrix=projection_matrix*view_matrix;
-				back=false;
-			}
-		}
-};
-
-// scene class
-class Scene
-{
-	public:
-		std::vector<Entity> still_entities;
-		std::vector<Entity> animated_entities;
-
-		Rod* rod=nullptr;
-
-		Fish* fish=nullptr;
-		bool draw_fish=false;
-
-		std::vector<Entity> ui;
-		bool draw_ui=false;
-
-	private:
-		GLint still_transform_loc;
-		GLint still_view_projection_loc;
-
-		GLint animated_transform_loc;
-		GLint animated_view_projection_loc;
-		GLint time_loc;
-
-	public:
-		// constructor
-		Scene(Shaders& still_shaders, Shaders& animated_shaders)
-		{
-			// still
-			still_transform_loc=glGetUniformLocation(still_shaders.program, "transform");
-			still_view_projection_loc=glGetUniformLocation(still_shaders.program, "view_projection");
-
-			// animated
-			animated_transform_loc=glGetUniformLocation(animated_shaders.program, "transform");
-			animated_view_projection_loc=glGetUniformLocation(animated_shaders.program, "view_projection");
-			time_loc=glGetUniformLocation(animated_shaders.program, "time");
-		}
-
-		// add entities
-		void addStillEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
-		{
-			Model* model=new Model(objPath, texturePath);
-			still_entities.push_back({model, transform});
-		}
-		void addStillEntity(Model& model, glm::mat4 transform)
-		{
-			still_entities.push_back({&model, transform});
-		}
-
-		void addAnimatedEntity(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
-		{
-			Model* model=new Model(objPath, texturePath);
-			animated_entities.push_back({model, transform});
-		}
-		void addAnimatedEntity(Model& model, glm::mat4 transform)
-		{
-			animated_entities.push_back({&model, transform});
-		}
-
-		void addRod(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
-		{
-			Model* model=new Model(objPath, texturePath);
-			rod=new Rod({model, transform});
-		}
-
-		void addFish(const std::string& objPath, const std::string& texturePath, glm::mat4 transform)
-		{
-			Model* model=new Model(objPath, texturePath);
-			fish=new Fish({model, transform});
-		}
-
-		void addToUi(Model& model, glm::mat4 transform)
-		{
-			ui.push_back({&model, transform});
-		}
-
-		// to add all needed entities
-		void fill()
-		{
-			// sky
-			addAnimatedEntity("resources/sky.obj", "resources/god.png", glm::mat4(1.0f));
-			// environment
-			addStillEntity("resources/land.obj", "resources/lake.png", glm::mat4(1.0f));
-			// trees
-			addAnimatedEntity("resources/trees_background.obj", "resources/trees_bg.png", glm::mat4(1.0f));
-			addAnimatedEntity("resources/trees_foreground.obj", "resources/trees_fg.png", glm::mat4(1.0f));
-			// water
-			addAnimatedEntity("resources/water.obj", "resources/lake.png", glm::mat4(1.0f));
-			// rod
-			addRod("resources/rod.obj", "resources/rod.png", glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.15f, -3.28f)));
-
-			// fish
-			glm::mat4 fish_transform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, -2.5f));
-			fish_transform=glm::rotate(fish_transform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-			fish_transform=glm::scale(fish_transform, glm::vec3(0.15f, 0.15f, 0.15f));
-			addFish("resources/fish.obj", "resources/fish.png", fish_transform);
-
-			// ui
-			Model* cube=new Model("resources/cube.obj", "resources/black.png");
-			glm::mat4 cube_transform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, -2.5f));
-			cube_transform=glm::scale(cube_transform, glm::vec3(0.4f, 0.4f, 0.4f));
-
-			glm::mat4 left_cube_transform=glm::translate(cube_transform, glm::vec3(-0.03f, 0.0f, 0.0f));
-			addToUi(*cube, left_cube_transform);
-
-			glm::mat4 up_cube_transform=glm::translate(cube_transform, glm::vec3(0.0f, 0.03f, 0.0f));
-			addToUi(*cube, up_cube_transform);
-
-			glm::mat4 right_cube_transform=glm::translate(cube_transform, glm::vec3(0.03f, 0.0f, 0.0f));
-			addToUi(*cube, right_cube_transform);
-
-			glm::mat4 down_cube_transform=glm::translate(cube_transform, glm::vec3(0.0f, -0.03f, 0.0f));
-			addToUi(*cube, down_cube_transform);
-		}
-
-		// animate entities based on status
-		void animateEntities(Status& status, Camera& camera, float time)
-		{
-			switch(status)
-			{
-				case WAIT:
-					draw_fish=false;
-					camera.stepForward();
-					rod->lowerRod();
-					rod->moveRod(time);
+				case STILL:
 					break;
-				case REEL:
-					draw_ui=true;
-					rod->shakeRod(time);
+				case BACKING:
+					if(timer>=step_time)
+					{
+						timer=0.0f;
+						progress=glm::clamp(progress+step_amount, 0.0f, 1.0f);
+						if(progress>=1.0f) setState(BACK);
+					}
 					break;
-				case CAUGHT:
-					draw_ui=false;
-					draw_fish=true;
-					camera.stepBack();
-					rod->liftRod();
-					fish->spin(time);
+				case ADVANCING:
+					if(timer>=step_time)
+					{
+						timer=0.0f;
+						progress=glm::clamp(progress-step_amount, 0.0f, 1.0f);
+						if(progress<=0.0f) setState(FORWARD);
+					}
+					break;
+				case FORWARD:
+					setState(STILL);
 					break;
 				default:
 					break;
 			}
+
+			// apply transform changes
+			glm::vec3 current_position=base_position;
+				glm::vec3 current_rotation=base_rotation;
+
+				current_position.z+=0.2f*progress;
+
+				view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(current_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+				view_matrix=glm::rotate(view_matrix, glm::radians(current_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+				view_matrix=glm::translate(view_matrix, -current_position);
+
+				view_projection_matrix=projection_matrix*view_matrix;
+		}
+
+		CameraState getState()
+		{
+			return state;
+		}
+		void setState(CameraState new_state)
+		{
+			if(state!=new_state)
+			{
+				if(state==BACKING && new_state!=BACK) return;
+				if(state==BACK && new_state!=ADVANCING) return;
+				if(state==ADVANCING && new_state!=FORWARD) return;
+
+				state=new_state;
+				timer=0.0f;
+			}
+		}
+};
+
+// entities and behaviors
+struct Entity
+{
+	const Model* model;
+	glm::mat4 transform;
+	bool show=true;
+};
+
+class IBehavior
+{
+	private:
+		Entity* entity;
+	public:
+		virtual void update(float delta_time)=0;
+		virtual ~IBehavior()=default;
+};
+
+// rod state and behavior
+enum RodState
+{
+	SWAYING,
+	SHAKING,
+	LIFTING,
+	LIFTED,
+	LOWERING,
+	LOWERED
+};
+
+class RodBehavior:public IBehavior
+{
+	private:
+		Entity* rod=nullptr;
+		RodState state=SWAYING;
+		float timer=0.0f;
+
+		// swaying
+		const float sway_step_time=1.0f; //time between updates
+		float sway_angle=0.0f;
+		float sway_direction=1.0f; // 1.0f or -1.0f
+
+		// shaking
+		const float shake_step_time=0.1f;
+		glm::vec3 shake_offset{0.0f};
+		float shake_direction=1.0f;
+
+		// lifting and lowering
+		const float lift_step_time=0.25f;
+		const float lift_step_amount=0.25f;
+		float lift_progress=0.0f;
+
+		// base
+		glm::vec3 base_position=glm::vec3(-0.03f, -0.15f, -3.28f);
+		glm::vec3 base_rotation{0.0f};
+
+	public:
+		RodBehavior(Entity& new_rod)
+		{
+			rod=&new_rod;
+		}
+
+		void update(float delta_time)
+		{
+			if(rod==nullptr) return;
+
+			timer+=delta_time;
+
+			switch(state)
+			{
+				case SWAYING:
+					if(timer>=sway_step_time)
+					{
+						timer=0.0f;
+						sway_angle=glm::clamp(sway_angle+sway_direction*1.0f, -1.0f, 1.0f);
+						if(sway_angle<=-1.0f || sway_angle>=1.0f) sway_direction*=-1.0f;
+					}
+					break;
+				case SHAKING:
+					if(timer>=shake_step_time)
+					{
+						timer=0.0f;
+						shake_offset=glm::vec3(0.01f*shake_direction, 0.01f*shake_direction, 0.0f);
+						shake_direction*=-1.0f;
+					}
+					break;
+				case LIFTING:
+					if(timer>=lift_step_time)
+					{
+						timer=0.0f;
+						lift_progress=glm::clamp(lift_progress+lift_step_amount, 0.0f, 1.0f);
+						if(lift_progress>=1.0f) setState(LIFTED);
+					}
+					break;
+				case LOWERING:
+					if(timer>=lift_step_time)
+					{
+						timer=0.0f;
+						lift_progress=glm::clamp(lift_progress-lift_step_amount, 0.0f, 1.0f);
+						if(lift_progress<=0.0f) setState(LOWERED);
+					}
+					break;
+				case LOWERED:
+					setState(SWAYING);
+					break;
+				default:
+					break;
+			}
+
+			// apply transform changes
+			glm::vec3 current_position=base_position;
+			glm::vec3 current_rotation=base_rotation;
+			
+			if(state!=SWAYING) sway_angle=0.0f;
+			current_rotation.y+=sway_angle;
+			if(state!=SHAKING) shake_offset=glm::vec3(0.0f);
+			current_position+=shake_offset;
+
+			current_position.y+=0.45f*lift_progress;
+			current_rotation.x+=45.0f*lift_progress;
+			current_rotation.y+=(-4.5f)*lift_progress;
+
+			// apply transformations
+			glm::mat4 transform=glm::translate(glm::mat4(1.0f), current_position);
+			transform=glm::rotate(transform, glm::radians(current_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+			transform=glm::rotate(transform, glm::radians(current_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+
+			rod->transform=transform;
+		}
+
+		RodState getState()
+		{
+			return state;
+		}
+		void setState(RodState new_state)
+		{
+			if(state!=new_state)
+			{
+				if(state==LIFTING && new_state!=LIFTED) return;
+				if(state==LIFTED && new_state!=LOWERING) return;
+				if(state==LOWERING && new_state!=LOWERED) return;
+
+				state=new_state;
+				timer=0.0f;
+			}
+		}
+};
+
+// fish behavior
+class FishBehavior:public IBehavior
+{
+	private:
+		Entity* fish=nullptr;
+		float timer=0.0f;
+		float step_time=0.3f;
+
+	public:
+		FishBehavior(Entity& new_fish)
+		{
+			fish=&new_fish;
+		}
+
+		void update(float delta_time)
+		{
+			if(fish==nullptr && !fish->show) return;
+
+			timer+=delta_time;
+			if(timer>=step_time)
+			{
+				timer=0.0f;
+				fish->transform=glm::rotate(fish->transform, glm::radians(22.5f), glm::vec3(0.0f, 1.0f, 0.0f));
+			}
+		}
+		void show()
+		{
+			fish->show=true;
+		}
+		void hide()
+		{
+			fish->show=false;
+		}
+};
+
+// scene
+class Scene
+{
+	private:
+		std::vector<Entity> still_entities;
+		std::vector<Entity> animated_entities;
+		std::vector<IBehavior*> behaviors;
+
+		GLint transform_loc;
+		GLint view_projection_loc;
+		GLint offset_loc;
+		float uv_timer=0.0f;
+		float uv_offset=0.0f;
+
+	public:
+		// constructor
+		Scene(Shaders& shaders)
+		{
+			transform_loc=glGetUniformLocation(shaders.program, "transform");
+			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
+			offset_loc=glGetUniformLocation(shaders.program, "offset");
+			
+			still_entities.reserve(20);
+			animated_entities.reserve(20);
+		}
+
+		// add entities
+		Entity& addStillEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
+		{
+			still_entities.push_back({&model, transform});
+			return still_entities.back();
+		}
+		Entity& addAnimatedEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
+		{
+			animated_entities.push_back({&model, transform});
+			return animated_entities.back();
+		}
+
+		template <typename T>
+		T& addBehavior(Entity& entity)
+		{
+			T* behavior=new T(entity);
+			behaviors.push_back(behavior);
+			return *behavior;
+		}
+
+		// update time and behaviors
+		void update(float delta_time)
+		{
+			for(IBehavior* behavior:behaviors) behavior->update(delta_time);
+
+			uv_timer+=delta_time;
+			if(uv_timer>=0.9f)
+			{
+				uv_timer=0.0f;
+				uv_offset+=0.001f;
+				uv_offset*=-1.0f;
+			}
 		}
 
 		// draw
-		void draw(Shaders& still_shaders, Shaders& animated_shaders, Camera& camera, float time)
+		void draw(Shaders& shaders, Camera& camera)
 		{
-			glUseProgram(still_shaders.program);
 			glEnable(GL_DEPTH_TEST);
+			glUseProgram(shaders.program);
 
 			for(Entity& entity:still_entities)
 			{
-				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				entity.model->draw();
-			}
-
-			if(rod!=nullptr)
-			{
-				glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(rod->transform));
-				glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				rod->model->draw();
-			}
-
-			glUseProgram(animated_shaders.program);
-
-			for(Entity& entity:animated_entities)
-			{
-				glUniformMatrix4fv(animated_transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(animated_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				glUniform1f(time_loc, time);
-				entity.model->draw();
-			}
-
-			if(draw_fish)
-			{
-				glUseProgram(still_shaders.program);
-				glEnable(GL_DEPTH_TEST);
-
-				if(fish!=nullptr)
+				if(entity.show)
 				{
-					glUniformMatrix4fv(still_transform_loc, 1, GL_FALSE, glm::value_ptr(fish->transform));
-					glUniformMatrix4fv(still_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-					fish->model->draw();
+					glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+					glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+					glUniform1f(offset_loc, 0.0f);
+					entity.model->draw();
 				}
 			}
 
-			if(draw_ui)
+			for(Entity& entity:animated_entities)
 			{
-				glUseProgram(still_shaders.program);
-				glEnable(GL_DEPTH_TEST);
-
-				for(Entity& cube:ui)
+				if(entity.show)
 				{
-					glUniformMatrix4fv(animated_transform_loc, 1, GL_FALSE, glm::value_ptr(cube.transform));
-					glUniformMatrix4fv(animated_view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-					cube.model->draw();
+					glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
+					glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
+					glUniform1f(offset_loc, uv_offset);
+					entity.model->draw();
 				}
 			}
 		}
 
 		~Scene()
 		{
-			for(Entity& entity:still_entities) delete entity.model;
-			still_entities.clear();
-			for(Entity& entity:animated_entities) delete entity.model;
-			animated_entities.clear();
-			delete rod->model;
-			delete fish->model;
+			for(IBehavior* behavior:behaviors) delete behavior;
 		}
 };
 
-// assets
-struct Assets
+void loadScene(ResourcesManager& resources, Scene& scene)
 {
-	sf::Window* window;
-	Scene* scene;
-	Camera* camera;
-	sf::Clock* shader_clock;
-	sf::Clock* gameplay_clock;
-
-	enum Status status=WAIT;
-};
-
-// callback functions
-void handle(const sf::Event::Closed&, Assets& asset)
-{
-    asset.window->close();
+	scene.addAnimatedEntity("sky", resources.loadModel("sky.obj", "god.png"), glm::mat4(1.0f));
+	scene.addStillEntity("land", resources.loadModel("land.obj", "lake.png"), glm::mat4(1.0f));
+	scene.addAnimatedEntity("trees_bg", resources.loadModel("trees_background.obj", "trees_bg.png"), glm::mat4(1.0f));
+	scene.addAnimatedEntity("trees_fg", resources.loadModel("trees_foreground.obj", "trees_fg.png"), glm::mat4(1.0f));
+	scene.addAnimatedEntity("water", resources.loadModel("water.obj", "lake.png"), glm::mat4(1.0f));
 }
 
-void handle(const sf::Event::Resized& resized, Assets& asset)
+RodBehavior& loadRod(ResourcesManager& resources, Scene& scene)
 {
-	glViewport (0, 0, resized.size.x, resized.size.y);
-	asset.camera->updateProjection(resized.size.x, resized.size.y);
+	Entity& rod=scene.addStillEntity("rod", resources.loadModel("rod.obj", "rod.png"), glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.15f, -3.28f)));
+	RodBehavior& rod_behavior=scene.addBehavior<RodBehavior>(rod);
+	return rod_behavior;
 }
 
-void handle(const sf::Event::MouseButtonPressed& mouseBP, Assets& asset)
+FishBehavior& loadFish(ResourcesManager& resources, Scene& scene)
 {
-	switch(asset.status)
-			{
-				case REEL:
-					asset.status=CAUGHT;
-					break;
-				case CAUGHT:
-					asset.status=WAIT;
-					break;
-				default:
-					break;
-			}
+	glm::mat4 fish_transform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, -2.5f));
+	fish_transform=glm::rotate(fish_transform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	fish_transform=glm::scale(fish_transform, glm::vec3(0.15f, 0.15f, 0.15f));
+	Entity& fish=scene.addStillEntity("fish", resources.loadModel("fish.obj", "fish.png"), fish_transform);
+	FishBehavior& fish_behavior=scene.addBehavior<FishBehavior>(fish);
+	return fish_behavior;
 }
 
-template <typename T>
-void handle(const T &, Assets& asset) {}
 
 // main
 int main()
 {
 	// setup
 	Setup setup;
-
-	// state
-	Assets asset;
-	asset.window=setup.window;
+	sf::Window& window=*setup.window;
 
 	// shaders
 	Shaders shaders("../include/vertex.vert", "../include/fragment.frag");
+	
+	// resources and scene setup
+	ResourcesManager resources;
+	Scene scene(shaders);
+	loadScene(resources, scene);
+	RodBehavior& rod=loadRod(resources, scene);
+	FishBehavior& fish=loadFish(resources, scene);
 
-	// creating the scene
-	asset.scene=new Scene(still_shaders, animated_shaders);
-	asset.scene->fill();
+	// creating the cameras
+	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
 
-	// creating the camera
-	asset.camera=new Camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, asset.window->getSize().x, asset.window->getSize().y);
-
-	// clocks
-	asset.shader_clock=new sf::Clock();
-	asset.gameplay_clock=new sf::Clock();
-	float shader_time;
-	float gameplay_time;
-
-	// for randomness
-	srand(std::time(0));
-	int rand=0;
+	// clock
+	sf::Clock clock;
+	float delta_time=0.0f; // since last update
+	float timer=0.0f; // to time the whole test loop
 
 	// main loop
-	while(asset.window->isOpen())
+	while(window.isOpen())
 	{
 		// event handling
-		asset.window->handleEvents([&](const auto &event) { handle(event, asset); });
-
-		// time
-		shader_time=asset.shader_clock->getElapsedTime().asSeconds();
-		gameplay_time=asset.gameplay_clock->getElapsedTime().asSeconds();
-
-		// WAIT to REEL control
-		if(asset.status==WAIT)
+		while(const std::optional event=window.pollEvent())
 		{
-			if(rand<=0)
+			if(event->is<sf::Event::Closed>()) window.close();
+			else if(const auto* resized=event->getIf<sf::Event::Resized>())
 			{
-				rand=(std::rand()%5)+1;
-				asset.gameplay_clock->restart();
-				asset.scene->draw_fish=false;
-			}
-			else if(rand<floor(gameplay_time))
-			{
-				asset.status=REEL;
-				asset.scene->draw_ui=true;
-				rand=0;
+				glViewport(0, 0, resized->size.x, resized->size.y);
+				camera.updateProjection(resized->size.x, resized->size.y);
 			}
 		}
 
-		// entities animated based on current status
-		asset.scene->animateEntities(asset.status, *asset.camera, shader_time);
+		delta_time=clock.restart().asSeconds();
+		timer+=delta_time;
+
+		// rod movement tests
+		if(timer<5) rod.setState(SWAYING);
+		else if(timer<10) rod.setState(SHAKING);
+		else if(timer<15)
+		{
+			rod.setState(LIFTING);
+			camera.setState(BACKING);
+		}
+		else if(timer>15)
+		{
+			rod.setState(LOWERING);
+			camera.setState(ADVANCING);
+		}
+		if(timer>16) timer=0.0f;
+
+		if(rod.getState()==LIFTED) fish.show();
+		else fish.hide();
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		if(asset.status==CAUGHT)
-		{
-			asset.scene->draw_ui=false;
-			asset.scene->draw_fish=true;
-		}
-		asset.scene->draw(still_shaders, animated_shaders, *asset.camera, shader_time);
+		scene.update(delta_time);
+		camera.update(delta_time);
+		scene.draw(shaders, camera);
 
-		asset.window->display();
+		window.display();
 	}
 	return 0;
 }
