@@ -1,207 +1,168 @@
-#define GLAD_GL_IMPLEMENTATION // Necessary for the header-only version.
+// INCLUDES //
+#define GLAD_GL_IMPLEMENTATION
 #include "../glad/gl.h"
 
-#include <SFML/Window.hpp>
-#include <SFML/Graphics/Image.hpp>
-#include <SFML/Audio.hpp>
+#include "include/setup.hh"
+#include "include/hotshaders.hh"
+#include "include/model.hh"
+#include "include/modelCollection.hh"
 
-#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
 #include <cstdlib>
-#include <fstream>
-#include <sstream>
 #include <string>
+#include <memory>
 
-#include "../include/hotshaders.hh"
-#include "../include/model.hh"
 
-class Setup
-{
-	public:
-		sf::Window* window;
-
-		Setup()
-		{
-			// settings
-			sf::ContextSettings settings;
-			settings.depthBits=32;
-			settings.stencilBits=8;
-			settings.antiAliasingLevel=4;
-			settings.attributeFlags=sf::ContextSettings::Attribute::Core;
-			settings.majorVersion=4;
-			settings.minorVersion=1;
-
-			// window
-			window=new sf::Window(sf::VideoMode({800, 600}), "FisChinG", sf::Style::Default, sf::State::Windowed, settings);
-			window->setVerticalSyncEnabled (true);
-			if(!window->setActive(true))
-			{
-				std::cerr<<"Failure: error during SFML OpenGL Activation."<<std::endl;
-				exit(1);
-			}
-
-			// window info
-			sf::ContextSettings gotten = window->getSettings();
-			std::cout<<"depth bits: "<<gotten.depthBits<<std::endl;
-			std::cout<<"stencil bits: " << gotten.stencilBits<<std::endl;
-			std::cout<<"antialiasing level: "<<gotten.antiAliasingLevel<<std::endl;
-			std::cout<<"SFML GL version: "<<gotten.majorVersion<<"."<<gotten.minorVersion<<std::endl;
-			
-			// glad info
-			int version=gladLoadGL(sf::Context::getFunction);
-			if(!version)
-			{
-				std::cerr<<"Failure: error during glad loading."<<std::endl;
-				exit(1);
-			}
-		}
-
-		~Setup()
-		{
-			delete window;
-		}
-};
-
-class ResourcesManager
+// ENTITY //
+struct Entity
 {
 	private:
-		std::string dirname="resources/";
-		std::unordered_map<std::string, Model*> models;
+		const Model* model;
+		glm::vec3 position;
+		glm::vec3 rotation;
+		bool movement;
 
 	public:
-		Model& loadModel(const std::string& objName, const std::string& textureName)
+		Entity(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):
+			model(model), position(position), rotation(rotation), movement(movement) {}
+		
+		glm::mat4 getTransform() const
 		{
-			auto model_iterator=models.find(objName);
-			if(model_iterator!=models.end()) return *(model_iterator->second);
-
-			Model* model=new Model(dirname+objName, dirname+textureName);
-			models[objName]=model;
-			return *model;
+			glm::mat4 transform=glm::translate(glm::mat4{1.0f}, position);
+			transform=glm::rotate(transform, glm::radians(rotation.x), glm::vec3{1.0f, 0.0f, 0.0f});
+			transform=glm::rotate(transform, glm::radians(rotation.y), glm::vec3{0.0f, 1.0f, 0.0f});
+			transform=glm::rotate(transform, glm::radians(rotation.z), glm::vec3{0.0f, 0.0f, 1.0f});
+			return transform;
 		}
+		bool moves() {return movement;}
 
-		~ResourcesManager()
-		{
-			for(auto& [name, model]:models) delete model;
-		}
+		void draw() const {model->draw();}
 };
 
+
+// CAMERA //
 class Camera
 {
 	private:
 		glm::vec3 position;
-		float phi_deg;
-		float theta_deg;
-
-	public:
+		glm::vec3 rotation;
 		glm::mat4 view_matrix;
 		glm::mat4 projection_matrix;
-		glm::mat4 view_projection_matrix;
-
-		Camera(glm::vec3 position, float phi_deg, float theta_deg, float width, float height)
-		{
-			view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(phi_deg), glm::vec3(0.0f, 1.0f, 0.0f));
-			view_matrix=glm::rotate(view_matrix, glm::radians(theta_deg), glm::vec3(1.0f, 0.0f, 0.0f));
-			view_matrix=glm::translate(view_matrix, -position);
-
-			updateProjection(width, height);
-		}
-		Camera(glm::vec3 position, glm::vec3 target, float width, float height)
-		{
-			view_matrix=glm::lookAt(position, target, glm::vec3(0.0f, 1.0f, 0.0f));
-
-			updateProjection(width, height);
-		}
-
-		void updateProjection(float width, float height)
-		{
-			projection_matrix=glm::perspective(glm::radians(50.0f), width/height, 0.1f, 100.0f);
-			view_projection_matrix=projection_matrix*view_matrix;
-		}
+		// glm::mat4 view_projection_matrix;
+	public:
+		Camera(glm::vec3 position, glm::vec3 rotation, float width, float height);
+		glm::mat4 getViewProjectionMatrix() const;
+		void updateProjection(float width, float height);
 };
 
-struct Entity
+Camera::Camera(glm::vec3 position, glm::vec3 rotation, float width, float height)
 {
-	const Model* model;
-	glm::mat4 transform;
-};
+	view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+	view_matrix=glm::rotate(view_matrix, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+	view_matrix=glm::translate(view_matrix, -position);
 
+	updateProjection(width, height);
+}
+
+void Camera::updateProjection(float width, float height)
+{
+	projection_matrix=glm::perspective(glm::radians(50.0f), width/height, 0.1f, 100.0f);
+}
+
+glm::mat4 Camera::getViewProjectionMatrix() const
+{
+	return projection_matrix*view_matrix;
+}
+
+
+// SCENE //
 class Scene
 {
 	private:
-		std::vector<Entity> still_entities;
-		std::vector<Entity> animated_entities;
+		ModelCollection models;
+		std::vector<std::unique_ptr<Entity>> entities;
+		Camera& camera;
 
 		GLint transform_loc;
 		GLint view_projection_loc;
 		GLint offset_loc;
-		float uv_timer=0.0f;
+
+		const float uv_step_time=1.0f;
+		const float uv_max_offset=0.004;
+		float uv_step=0.001f;
+		float timer=0.0f;
 		float uv_offset=0.0f;
 
 	public:
-		// constructor
-		Scene(Shaders& shaders)
-		{
-			transform_loc=glGetUniformLocation(shaders.program, "transform");
-			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
-			offset_loc=glGetUniformLocation(shaders.program, "offset");
-		}
-
-		// add entities
-		void addStillEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
-		{
-			still_entities.push_back({&model, transform});
-		}
-		void addAnimatedEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
-		{
-			animated_entities.push_back({&model, transform});
-		}
-
-		// update time
-		void update(float delta_time)
-		{
-			uv_timer+=delta_time;
-			if(uv_timer>=1.0f)
-			{
-				uv_timer=0.0f;
-				uv_offset+=0.001f;
-				uv_offset*=-1.0f;
-			}
-		}
-
-		// draw
-		void draw(Shaders& shaders, Camera& camera)
-		{
-			glEnable(GL_DEPTH_TEST);
-			glUseProgram(shaders.program);
-
-			for(Entity& entity:still_entities)
-			{
-				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				glUniform1f(offset_loc, 0.0f);
-				entity.model->draw();
-			}
-
-			for(Entity& entity:animated_entities)
-			{
-				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				glUniform1f(offset_loc, uv_offset);
-				entity.model->draw();
-			}
-		}
+		Scene(Shaders& shaders, Camera& camera);
+		void addModel(const std::string& model_name, const std::string& obj_path, const std::string& texture_path);
+		void addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation, bool movement);
+		void update(float delta_time);
+		void draw(Shaders& shaders);
 };
 
-void loadScene(ResourcesManager& resources, Scene& scene)
+Scene::Scene(Shaders& shaders, Camera& camera):camera(camera)
 {
-	scene.addAnimatedEntity("sky", resources.loadModel("sky.obj", "god.png"), glm::mat4(1.0f));
-	scene.addStillEntity("land", resources.loadModel("land.obj", "lake.png"), glm::mat4(1.0f));
-	scene.addAnimatedEntity("trees_bg", resources.loadModel("trees_background.obj", "trees_bg.png"), glm::mat4(1.0f));
-	scene.addAnimatedEntity("trees_fg", resources.loadModel("trees_foreground.obj", "trees_fg.png"), glm::mat4(1.0f));
-	scene.addAnimatedEntity("water", resources.loadModel("water.obj", "lake.png"), glm::mat4(1.0f));
+	transform_loc=glGetUniformLocation(shaders.program, "transform");
+	view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
+	offset_loc=glGetUniformLocation(shaders.program, "offset");
+}
+
+void Scene::addModel(const std::string& model_name, const std::string& obj_path, const std::string& texture_path)
+{
+	models.load(model_name, obj_path, texture_path);
+}
+void Scene::addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation, bool movement)
+{
+	entities.push_back(std::make_unique<Entity>(&models.get(model_name), position, rotation, movement));
+}
+
+void Scene::update(float delta_time)
+{
+	timer+=delta_time;
+	if(timer>=uv_step_time)
+	{
+		timer=0.0f;
+		uv_offset+=uv_step;
+		if(uv_offset>=uv_max_offset || uv_offset<=(uv_max_offset*-0.1f) ) uv_step*=-1.0f;
+	}
+}
+
+void Scene::draw(Shaders& shaders)
+{
+	glUseProgram(shaders.program);
+	glEnable(GL_DEPTH_TEST);
+	
+	for(auto& entity:entities)
+	{
+		glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity->getTransform()));
+		glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.getViewProjectionMatrix()));
+		if(entity->moves()) glUniform1f(offset_loc, uv_offset);
+		else glUniform1f(offset_loc, 0.0f);
+		entity->draw();
+	}
+}
+
+
+// MAIN //
+void loadScene(Scene& scene)
+{
+	scene.addModel("sky", "resources/sky.obj", "resources/god.png");
+	scene.addEntity("sky", glm::vec3(0.0f), glm::vec3(0.0f), true);
+
+	scene.addModel("land", "resources/land.obj", "resources/lake.png");
+	scene.addEntity("lake", glm::vec3(0.0f), glm::vec3(0.0f), false);
+
+	scene.addModel("trees_bg", "resources/trees_background.obj", "resources/trees_bg.png");
+	scene.addEntity("trees_bg", glm::vec3(0.0f), glm::vec3(0.0f), true);
+	scene.addModel("trees_fg", "resources/trees_foreground.obj", "resources/trees_fg.png");
+	scene.addEntity("trees_fg", glm::vec3(0.0f), glm::vec3(0.0f), false);
+
+	scene.addModel("water", "resources/water.obj", "resources/lake.png");
+	scene.addEntity("water", glm::vec3(0.0f), glm::vec3(0.0f), false);
 }
 
 int main()
@@ -211,18 +172,16 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("include/vertex.vert", "include/fragment.frag");
+	Shaders shaders("include/shader.vert", "include/shader.frag");
 
 	// resources and scene setup
-	ResourcesManager resources;
-	Scene scene(shaders);
-	loadScene(resources, scene);
-
-	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
+	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), window.getSize().x, window.getSize().y);
+	Scene scene(shaders, camera);
+	loadScene(scene);
 
 	// clock
 	sf::Clock clock;
-	float delta_time=0.0f; // since last update
+	float delta_time=0.0f;
 
 	// main loop
 	while(window.isOpen())
@@ -239,11 +198,11 @@ int main()
 		}
 
 		delta_time=clock.restart().asSeconds();
+		scene.update(delta_time);
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		scene.update(delta_time);
-		scene.draw(shaders, camera);
+		scene.draw(shaders);
 		window.display();
 	}
 	return 0;

@@ -1,206 +1,97 @@
-#define GLAD_GL_IMPLEMENTATION // Necessary for the header-only version.
+// INCLUDES //
+#define GLAD_GL_IMPLEMENTATION
 #include "../glad/gl.h"
 
-#include <SFML/Window.hpp>
-#include <SFML/Graphics/Image.hpp>
-#include <SFML/Audio.hpp>
+#include "include/setup.hh"
+#include "include/hotshaders.hh"
+#include "include/model.hh"
+#include "include/modelCollection.hh"
 
-#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
 #include <cstdlib>
-#include <fstream>
-#include <sstream>
 #include <string>
+#include <memory>
 
-#include "../include/hotshaders.hh"
-#include "../include/model.hh"
 
-// setup
-class Setup
+// ENTITY //
+class Entity
 {
-	public:
-		sf::Window* window;
-
-		Setup()
-		{
-			// settings
-			sf::ContextSettings settings;
-			settings.depthBits=32;
-			settings.stencilBits=8;
-			settings.antiAliasingLevel=4;
-			settings.attributeFlags=sf::ContextSettings::Attribute::Core;
-			settings.majorVersion=4;
-			settings.minorVersion=1;
-
-			// window
-			window=new sf::Window(sf::VideoMode({800, 600}), "FisChinG", sf::Style::Default, sf::State::Windowed, settings);
-			window->setVerticalSyncEnabled (true);
-			if(!window->setActive(true))
-			{
-				std::cerr<<"Failure: error during SFML OpenGL Activation."<<std::endl;
-				exit(1);
-			}
-
-			// window info
-			sf::ContextSettings gotten = window->getSettings();
-			std::cout<<"depth bits: "<<gotten.depthBits<<std::endl;
-			std::cout<<"stencil bits: " << gotten.stencilBits<<std::endl;
-			std::cout<<"antialiasing level: "<<gotten.antiAliasingLevel<<std::endl;
-			std::cout<<"SFML GL version: "<<gotten.majorVersion<<"."<<gotten.minorVersion<<std::endl;
-			
-			// glad info
-			int version=gladLoadGL(sf::Context::getFunction);
-			if(!version)
-			{
-				std::cerr<<"Failure: error during glad loading."<<std::endl;
-				exit(1);
-			}
-		}
-
-		~Setup()
-		{
-			delete window;
-		}
-};
-
-// model manager
-class ResourcesManager
-{
-	private:
-		std::string dirname="resources/";
-		std::unordered_map<std::string, Model*> models;
-
-	public:
-		Model& loadModel(const std::string& objName, const std::string& textureName)
-		{
-			auto model_iterator=models.find(objName);
-			if(model_iterator!=models.end()) return *(model_iterator->second);
-
-			Model* model=new Model(dirname+objName, dirname+textureName);
-			models[objName]=model;
-			return *model;
-		}
-
-		~ResourcesManager()
-		{
-			for(auto& [name, model]:models) delete model;
-		}
-};
-
-// camera
-class Camera
-{
-	private:
+	protected:
+		const Model* model;
 		glm::vec3 position;
-		float phi_deg;
-		float theta_deg;
+		glm::vec3 rotation;
+		bool movement;
 
 	public:
-		glm::mat4 view_matrix;
-		glm::mat4 projection_matrix;
-		glm::mat4 view_projection_matrix;
+		Entity(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):
+			model(model), position(position), rotation(rotation), movement(movement) {}
+		
+		glm::mat4 getTransform() const
+		{
+			glm::mat4 transform=glm::translate(glm::mat4{1.0f}, position);
+			transform=glm::rotate(transform, glm::radians(rotation.x), glm::vec3{1.0f, 0.0f, 0.0f});
+			transform=glm::rotate(transform, glm::radians(rotation.y), glm::vec3{0.0f, 1.0f, 0.0f});
+			transform=glm::rotate(transform, glm::radians(rotation.z), glm::vec3{0.0f, 0.0f, 1.0f});
+			return transform;
+		}
+		bool moves() const {return movement;}
 
+		virtual void update(float delta_time) {}
+		void draw() const {model->draw();}
+};
+
+class Rod:public Entity
+{
 	public:
-		Camera(glm::vec3 position, float phi_deg, float theta_deg, float width, float height)
+		enum RodState
 		{
-			view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(phi_deg), glm::vec3(0.0f, 1.0f, 0.0f));
-			view_matrix=glm::rotate(view_matrix, glm::radians(theta_deg), glm::vec3(1.0f, 0.0f, 0.0f));
-			view_matrix=glm::translate(view_matrix, -position);
-
-			updateProjection(width, height);
-		}
-		Camera(glm::vec3 position, glm::vec3 target, float width, float height)
-		{
-			view_matrix=glm::lookAt(position, target, glm::vec3(0.0f, 1.0f, 0.0f));
-
-			updateProjection(width, height);
-		}
-
-		void updateProjection(float width, float height)
-		{
-			projection_matrix=glm::perspective(glm::radians(50.0f), width/height, 0.1f, 100.0f);
-			view_projection_matrix=projection_matrix*view_matrix;
-		}
-};
-
-// entities and behaviors
-struct Entity
-{
-	const Model* model;
-	glm::mat4 transform;
-};
-
-class IBehavior
-{
+			SWAYING,
+			SHAKING,
+			LIFTING,
+			LIFTED,
+			LOWERING,
+			LOWERED
+		};
 	private:
-		Entity* entity;
-	public:
-		virtual void update(float delta_time)=0;
-		virtual ~IBehavior()=default;
-};
-
-// rod state and behavior
-enum RodState
-{
-	SWAYING,
-	SHAKING,
-	LIFTING,
-	LIFTED,
-	LOWERING,
-	LOWERED
-};
-
-class RodBehavior:public IBehavior
-{
-	private:
-		Entity* rod=nullptr;
 		RodState state=SWAYING;
 		float timer=0.0f;
-
 		// swaying
-		const float sway_step_time=1.0f; //time between updates
+		const float sway_step_time=1.0f;
+		const float max_sway_angle=1.0f;
 		float sway_angle=0.0f;
-		float sway_direction=1.0f; // 1.0f or -1.0f
-
+		float sway_direction=1.0f;
 		// shaking
 		const float shake_step_time=0.1f;
 		glm::vec3 shake_offset{0.0f};
 		float shake_direction=1.0f;
-
 		// lifting and lowering
 		const float lift_step_time=0.25f;
 		const float lift_step_amount=0.25f;
 		float lift_progress=0.0f;
-
 		// base
 		glm::vec3 base_position;
 		glm::vec3 base_rotation;
-
 	public:
-		RodBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
+		Rod(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):Entity(model, position, rotation, movement)
 		{
-			rod=&entity;
 			base_position=position;
 			base_rotation=rotation;
 		}
 
-		void update(float delta_time)
+		void update(float delta_time) override
 		{
-			if(rod==nullptr) return;
-
 			timer+=delta_time;
-
 			switch(state)
 			{
 				case SWAYING:
 					if(timer>=sway_step_time)
 					{
 						timer=0.0f;
-						sway_angle=glm::clamp(sway_angle+sway_direction*1.0f, -1.0f, 1.0f);
-						if(sway_angle<=-1.0f || sway_angle>=1.0f) sway_direction*=-1.0f;
+						sway_angle=glm::clamp(sway_angle+sway_direction*max_sway_angle, (max_sway_angle*-1.0f), max_sway_angle);
+						if(sway_angle<=(max_sway_angle*-1.0f) || sway_angle>=max_sway_angle) sway_direction*=-1.0f;
 					}
 					break;
 				case SHAKING:
@@ -233,32 +124,10 @@ class RodBehavior:public IBehavior
 				default:
 					break;
 			}
-
-			// apply transform changes
-			glm::vec3 current_position=base_position;
-			glm::vec3 current_rotation=base_rotation;
-			
-			if(state!=SWAYING) sway_angle=0.0f;
-			current_rotation.y+=sway_angle;
-			if(state!=SHAKING) shake_offset=glm::vec3(0.0f);
-			current_position+=shake_offset;
-
-			current_position.y+=0.45f*lift_progress;
-			current_rotation.x+=45.0f*lift_progress;
-			current_rotation.y+=(-4.5f)*lift_progress;
-
-			// apply transformations
-			glm::mat4 transform=glm::translate(glm::mat4(1.0f), current_position);
-			transform=glm::rotate(transform, glm::radians(current_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-			transform=glm::rotate(transform, glm::radians(current_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-
-			rod->transform=transform;
 		}
 
-		RodState getState()
-		{
-			return state;
-		}
+		void testState(RodState new_state) {setState(new_state);} // just for this version
+	private:
 		void setState(RodState new_state)
 		{
 			if(state!=new_state)
@@ -274,114 +143,134 @@ class RodBehavior:public IBehavior
 };
 
 
-// scene
+// CAMERA //
+class Camera
+{
+	private:
+		glm::vec3 position;
+		glm::vec3 rotation;
+		glm::mat4 view_matrix;
+		glm::mat4 projection_matrix;
+		// glm::mat4 view_projection_matrix;
+	public:
+		Camera(glm::vec3 position, glm::vec3 rotation, float width, float height);
+		glm::mat4 getViewProjectionMatrix() const;
+		void updateProjection(float width, float height);
+};
+
+Camera::Camera(glm::vec3 position, glm::vec3 rotation, float width, float height)
+{
+	view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+	view_matrix=glm::rotate(view_matrix, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+	view_matrix=glm::translate(view_matrix, -position);
+
+	updateProjection(width, height);
+}
+
+void Camera::updateProjection(float width, float height)
+{
+	projection_matrix=glm::perspective(glm::radians(50.0f), width/height, 0.1f, 100.0f);
+}
+
+glm::mat4 Camera::getViewProjectionMatrix() const
+{
+	return projection_matrix*view_matrix;
+}
+
+
+// SCENE //
 class Scene
 {
 	private:
-		std::vector<Entity> still_entities;
-		std::vector<Entity> animated_entities;
-		std::vector<IBehavior*> behaviors;
+		ModelCollection models;
+		std::vector<std::unique_ptr<Entity>> entities;
+		Camera& camera;
 
 		GLint transform_loc;
 		GLint view_projection_loc;
 		GLint offset_loc;
-		float uv_timer=0.0f;
+
+		const float uv_step_time=1.0f;
+		const float uv_max_offset=0.004;
+		float timer=0.0f;
+		float uv_step=0.001f;
 		float uv_offset=0.0f;
 
 	public:
-		// constructor
-		Scene(Shaders& shaders)
-		{
-			transform_loc=glGetUniformLocation(shaders.program, "transform");
-			view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
-			offset_loc=glGetUniformLocation(shaders.program, "offset");
-			
-			still_entities.reserve(20);
-			animated_entities.reserve(20);
-			behaviors.reserve(10);
-		}
-
-		// add entities
-		Entity& addStillEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
-		{
-			still_entities.push_back({&model, transform});
-			return still_entities.back();
-		}
-		Entity& addAnimatedEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
-		{
-			animated_entities.push_back({&model, transform});
-			return animated_entities.back();
-		}
-
+		Scene(Shaders& shaders, Camera& camera);
+		void addModel(const std::string& model_name, const std::string& obj_path, const std::string& texture_path);
 		template <typename T>
-		T& addBehavior(Entity& entity, glm::vec3 position, glm::vec3 rotation)
-		{
-			T* behavior=new T(entity, position, rotation);
-			behaviors.push_back(behavior);
-			return *behavior;
-		}
-
-		// update time and behaviors
-		void update(float delta_time)
-		{
-			for(IBehavior* behavior:behaviors) behavior->update(delta_time);
-
-			uv_timer+=delta_time;
-			if(uv_timer>=0.9f)
-			{
-				uv_timer=0.0f;
-				uv_offset+=0.001f;
-				uv_offset*=-1.0f;
-			}
-		}
-
-		// draw
-		void draw(Shaders& shaders, Camera& camera)
-		{
-			glEnable(GL_DEPTH_TEST);
-			glUseProgram(shaders.program);
-
-			for(Entity& entity:still_entities)
-			{
-				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				glUniform1f(offset_loc, 0.0f);
-				entity.model->draw();
-			}
-
-			for(Entity& entity:animated_entities)
-			{
-				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.view_projection_matrix));
-				glUniform1f(offset_loc, uv_offset);
-				entity.model->draw();
-			}
-		}
-
-		~Scene()
-		{
-			for(IBehavior* behavior:behaviors) delete behavior;
-		}
+		T* addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation, bool movement); // returns T* for rod testing
+		void update(float delta_time);
+		void draw(Shaders& shaders);
 };
 
-void loadScene(ResourcesManager& resources, Scene& scene)
+Scene::Scene(Shaders& shaders, Camera& camera):camera(camera)
 {
-	scene.addAnimatedEntity("sky", resources.loadModel("sky.obj", "god.png"), glm::mat4(1.0f));
-	scene.addStillEntity("land", resources.loadModel("land.obj", "lake.png"), glm::mat4(1.0f));
-	scene.addAnimatedEntity("trees_bg", resources.loadModel("trees_background.obj", "trees_bg.png"), glm::mat4(1.0f));
-	scene.addAnimatedEntity("trees_fg", resources.loadModel("trees_foreground.obj", "trees_fg.png"), glm::mat4(1.0f));
-	scene.addAnimatedEntity("water", resources.loadModel("water.obj", "lake.png"), glm::mat4(1.0f));
+	transform_loc=glGetUniformLocation(shaders.program, "transform");
+	view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
+	offset_loc=glGetUniformLocation(shaders.program, "offset");
 }
 
-RodBehavior& loadRod(ResourcesManager& resources, Scene& scene)
+void Scene::addModel(const std::string& model_name, const std::string& obj_path, const std::string& texture_path)
 {
-	Entity& rod=scene.addStillEntity("rod", resources.loadModel("rod.obj", "rod.png"), glm::translate(glm::mat4(1.0f), glm::vec3(-0.03f, -0.15f, -3.28f)));
-	RodBehavior& rod_behavior=scene.addBehavior<RodBehavior>(rod, glm::vec3(-0.03f, -0.15f, -3.28f), glm::vec3(0.0f));
-	return rod_behavior;
+	models.load(model_name, obj_path, texture_path);
+}
+template <typename T>
+T* Scene::addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation, bool movement)
+{
+	entities.push_back(std::make_unique<T>(&models.get(model_name), position, rotation, movement));
+	return entities.back().get();
+}
+
+void Scene::update(float delta_time)
+{
+	timer+=delta_time;
+	for(auto& entity:entities) entity->update(delta_time);
+	if(timer>=uv_step_time)
+	{
+		timer=0.0f;
+		uv_offset+=uv_step;
+		if(uv_offset>=uv_max_offset || uv_offset<=(uv_max_offset*-0.1f) ) uv_step*=-1.0f;
+	}
+}
+
+void Scene::draw(Shaders& shaders)
+{
+	glUseProgram(shaders.program);
+	glEnable(GL_DEPTH_TEST);
+	
+	for(auto& entity:entities)
+	{
+		glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity->getTransform()));
+		glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.getViewProjectionMatrix()));
+		if(entity->moves()) glUniform1f(offset_loc, uv_offset);
+		else glUniform1f(offset_loc, 0.0f);
+		entity->draw();
+	}
 }
 
 
-// main
+// MAIN //
+void loadScene(Scene& scene)
+{
+	scene.addModel("sky", "resources/sky.obj", "resources/god.png");
+	scene.addEntity<Entity>("sky", glm::vec3(0.0f), glm::vec3(0.0f), true);
+
+	scene.addModel("land", "resources/land.obj", "resources/lake.png");
+	scene.addEntity<Entity>("lake", glm::vec3(0.0f), glm::vec3(0.0f), false);
+
+	scene.addModel("trees_bg", "resources/trees_background.obj", "resources/trees_bg.png");
+	scene.addEntity<Entity>("trees_bg", glm::vec3(0.0f), glm::vec3(0.0f), true);
+	scene.addModel("trees_fg", "resources/trees_foreground.obj", "resources/trees_fg.png");
+	scene.addEntity<Entity>("trees_fg", glm::vec3(0.0f), glm::vec3(0.0f), false);
+
+	scene.addModel("water", "resources/water.obj", "resources/lake.png");
+	scene.addEntity<Entity>("water", glm::vec3(0.0f), glm::vec3(0.0f), false);
+
+	scene.addModel("rod", "resources/rod.obj", "resources/rod.png");
+}
+
 int main()
 {
 	// setup
@@ -389,20 +278,18 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("include/vertex.vert", "include/fragment.frag");
+	Shaders shaders("include/shader.vert", "include/shader.frag");
 
 	// resources and scene setup
-	ResourcesManager resources;
-	Scene scene(shaders);
-	loadScene(resources, scene);
-	RodBehavior& rod=loadRod(resources, scene);
-
-	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), 0.0f, 5.0f, window.getSize().x, window.getSize().y);
+	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), window.getSize().x, window.getSize().y);
+	Scene scene(shaders, camera);
+	loadScene(scene);
+	Rod* rod=scene.addEntity<Rod>("rod", glm::vec3(-0.03f, -0.15f, -3.28f), glm::vec3(0.0f), false);
 
 	// clock
 	sf::Clock clock;
-	float delta_time=0.0f; // since last update
-	float timer=0.0f; // to time the whole test loop
+	float timer; // needed for testing
+	float delta_time=0.0f;
 
 	// main loop
 	while(window.isOpen())
@@ -418,20 +305,21 @@ int main()
 			}
 		}
 
-		delta_time=clock.restart().asSeconds();
+		// test
 		timer+=delta_time;
 
-		// rod movement tests
-		if(timer<5) rod.setState(SWAYING);
-		else if(timer<10) rod.setState(SHAKING);
-		else if(timer<15) rod.setState(LIFTING);
-		else if(timer>15) rod.setState(LOWERING);
+		if(timer<5) rod->testState(rod->SWAYING);
+		else if(timer<10) rod->testState(rod->SHAKING);
+		else if(timer<15) rod->testState(rod->LIFTING);
+		else if(timer>15) rod->testState(rod->LOWERING);
 		if(timer>16) timer=0.0f;
+
+		delta_time=clock.restart().asSeconds();
+		scene.update(delta_time);
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		scene.update(delta_time);
-		scene.draw(shaders, camera);
+		scene.draw(shaders);
 		window.display();
 	}
 	return 0;

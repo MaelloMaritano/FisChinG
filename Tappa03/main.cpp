@@ -2,39 +2,18 @@
 #define GLAD_GL_IMPLEMENTATION
 #include "../glad/gl.h"
 
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
 #include "include/setup.hh"
 #include "include/hotshaders.hh"
 #include "include/model.hh"
+#include "include/modelCollection.hh"
+
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
 #include <cstdlib>
 #include <string>
-#include <unordered_map>
 #include <memory>
-
-
-// MODEL COLLECTION //
-class ModelCollection
-{
-	private:
-    std::unordered_map<std::string, std::unique_ptr<Model>> models;
-
-	public:
-		ModelCollection()=default;
-		Model& load(const std::string& name, const std::string& objPath, const std::string& texturePath)
-		{
-			std::unique_ptr<Model> model=std::make_unique<Model>(objPath, texturePath);
-			models[name]=std::move(model);
-			return *models[name];
-		}
-		Model& get(const std::string& name)
-		{
-			return *models.at(name);
-		}
-};
 
 
 // ENTITY //
@@ -129,7 +108,6 @@ void Scene::addModel(const std::string& model_name, const std::string& obj_path,
 }
 void Scene::addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation)
 {
-
 	entities.push_back(std::make_unique<Entity>(&models.get(model_name), position, rotation));
 }
 
@@ -166,7 +144,7 @@ int main()
 	Shaders shaders("Tappa03/shader.vert", "Tappa03/shader.frag");
 
 	// resources and scene setup
-	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(0.0f, 5.0f, 0.0f), window.getSize().x, window.getSize().y);
+	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), window.getSize().x, window.getSize().y);
 	Scene scene(shaders, camera);
 	loadScene(scene);
 

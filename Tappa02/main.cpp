@@ -2,12 +2,12 @@
 #define GLAD_GL_IMPLEMENTATION
 #include "../glad/gl.h"
 
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-
 #include "include/setup.hh"
 #include "include/hotshaders.hh"
 #include "include/model.hh"
+
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <iostream>
 #include <cstdlib>
@@ -20,7 +20,7 @@
 class ModelCollection
 {
 	private:
-    std::unordered_map<std::string, std::unique_ptr<Model>> models;
+	std::unordered_map<std::string, std::unique_ptr<Model>> models;
 
 	public:
 		ModelCollection()=default;
@@ -91,7 +91,6 @@ void Scene::addModel(const std::string& model_name, const std::string& obj_path,
 }
 void Scene::addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation)
 {
-
 	entities.push_back(std::make_unique<Entity>(&models.get(model_name), position, rotation));
 }
 
