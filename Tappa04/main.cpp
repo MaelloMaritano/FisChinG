@@ -91,8 +91,8 @@ class Scene
 		GLint offset_loc;
 
 		const float uv_step_time=1.0f;
-		const float uv_max_offset=0.004;
-		float uv_step=0.001f;
+		const float uv_max_offset=0.003;
+		float uv_step=0.0005f;
 		float timer=0.0f;
 		float uv_offset=0.0f;
 
@@ -154,7 +154,7 @@ void loadScene(Scene& scene)
 	scene.addEntity("sky", glm::vec3(0.0f), glm::vec3(0.0f), true);
 
 	scene.addModel("land", "resources/land.obj", "resources/lake.png");
-	scene.addEntity("lake", glm::vec3(0.0f), glm::vec3(0.0f), false);
+	scene.addEntity("land", glm::vec3(0.0f), glm::vec3(0.0f), false);
 
 	scene.addModel("trees_bg", "resources/trees_background.obj", "resources/trees_bg.png");
 	scene.addEntity("trees_bg", glm::vec3(0.0f), glm::vec3(0.0f), true);
@@ -162,7 +162,7 @@ void loadScene(Scene& scene)
 	scene.addEntity("trees_fg", glm::vec3(0.0f), glm::vec3(0.0f), false);
 
 	scene.addModel("water", "resources/water.obj", "resources/lake.png");
-	scene.addEntity("water", glm::vec3(0.0f), glm::vec3(0.0f), false);
+	scene.addEntity("water", glm::vec3(0.0f), glm::vec3(0.0f), true);
 }
 
 int main()
@@ -172,7 +172,7 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("include/shader.vert", "include/shader.frag");
+	Shaders shaders("Tappa04/shader.vert", "Tappa04/shader.frag");
 
 	// resources and scene setup
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), window.getSize().x, window.getSize().y);

@@ -124,6 +124,19 @@ class Rod:public Entity
 				default:
 					break;
 			}
+			
+			// apply transform changes
+			position=base_position;
+			rotation=base_rotation;
+			
+			if(state!=SWAYING) sway_angle=0.0f;
+			rotation.y+=sway_angle;
+			if(state!=SHAKING) shake_offset=glm::vec3(0.0f);
+			position+=shake_offset;
+
+			position.y+=0.45f*lift_progress;
+			rotation.x+=45.0f*lift_progress;
+			rotation.y+=(-4.5f)*lift_progress;
 		}
 
 		void testState(RodState new_state) {setState(new_state);} // just for this version
@@ -191,9 +204,9 @@ class Scene
 		GLint offset_loc;
 
 		const float uv_step_time=1.0f;
-		const float uv_max_offset=0.004;
+		const float uv_max_offset=0.003;
 		float timer=0.0f;
-		float uv_step=0.001f;
+		float uv_step=0.0005f;
 		float uv_offset=0.0f;
 
 	public:
@@ -219,8 +232,10 @@ void Scene::addModel(const std::string& model_name, const std::string& obj_path,
 template <typename T>
 T* Scene::addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation, bool movement)
 {
-	entities.push_back(std::make_unique<T>(&models.get(model_name), position, rotation, movement));
-	return entities.back().get();
+	std::unique_ptr<T> entity=std::make_unique<T>(&models.get(model_name), position, rotation, movement);
+	T* ptr=entity.get();
+	entities.push_back(std::move(entity));
+	return ptr;
 }
 
 void Scene::update(float delta_time)
@@ -258,7 +273,7 @@ void loadScene(Scene& scene)
 	scene.addEntity<Entity>("sky", glm::vec3(0.0f), glm::vec3(0.0f), true);
 
 	scene.addModel("land", "resources/land.obj", "resources/lake.png");
-	scene.addEntity<Entity>("lake", glm::vec3(0.0f), glm::vec3(0.0f), false);
+	scene.addEntity<Entity>("land", glm::vec3(0.0f), glm::vec3(0.0f), false);
 
 	scene.addModel("trees_bg", "resources/trees_background.obj", "resources/trees_bg.png");
 	scene.addEntity<Entity>("trees_bg", glm::vec3(0.0f), glm::vec3(0.0f), true);
@@ -266,7 +281,7 @@ void loadScene(Scene& scene)
 	scene.addEntity<Entity>("trees_fg", glm::vec3(0.0f), glm::vec3(0.0f), false);
 
 	scene.addModel("water", "resources/water.obj", "resources/lake.png");
-	scene.addEntity<Entity>("water", glm::vec3(0.0f), glm::vec3(0.0f), false);
+	scene.addEntity<Entity>("water", glm::vec3(0.0f), glm::vec3(0.0f), true);
 
 	scene.addModel("rod", "resources/rod.obj", "resources/rod.png");
 }
@@ -278,7 +293,7 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("include/shader.vert", "include/shader.frag");
+	Shaders shaders("Tappa05/shader.vert", "Tappa05/shader.frag");
 
 	// resources and scene setup
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), window.getSize().x, window.getSize().y);
@@ -288,7 +303,7 @@ int main()
 
 	// clock
 	sf::Clock clock;
-	float timer; // needed for testing
+	float timer=0.0f; // needed for testing
 	float delta_time=0.0f;
 
 	// main loop
