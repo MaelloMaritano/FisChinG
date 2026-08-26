@@ -422,7 +422,7 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("Tappa05/shader.vert", "Tappa05/shader.frag");
+	Shaders shaders("Tappa06/shader.vert", "Tappa06/shader.frag");
 
 	// resources and scene setup
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), window.getSize().x, window.getSize().y);
