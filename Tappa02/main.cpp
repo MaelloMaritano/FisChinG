@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <memory>
 
+
 // MODEL COLLECTION //
 class ModelCollection
 {
@@ -34,6 +35,7 @@ class ModelCollection
 			return *models.at(name);
 		}
 };
+
 
 // ENTITY //
 struct Entity
@@ -61,6 +63,7 @@ struct Entity
 		}
 };
 
+
 // SCENE //
 class Scene
 {
@@ -82,7 +85,6 @@ Scene::Scene(Shaders& shaders)
 	transform_loc=glGetUniformLocation(shaders.program, "transform");
 }
 
-// add entity
 void Scene::addModel(const std::string& model_name, const std::string& obj_path, const std::string& texture_path)
 {
 	models.load(model_name, obj_path, texture_path);
@@ -93,7 +95,6 @@ void Scene::addEntity(const std::string& model_name, glm::vec3 position, glm::ve
 	entities.push_back(std::make_unique<Entity>(&models.get(model_name), position, rotation));
 }
 
-// draw
 void Scene::draw(Shaders& shaders)
 {
 	glUseProgram(shaders.program);
@@ -106,8 +107,8 @@ void Scene::draw(Shaders& shaders)
 	}
 }
 
-// MAIN //
 
+// MAIN //
 void loadScene(Scene& scene)
 {
 	std::string fish="fish";
