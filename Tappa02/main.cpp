@@ -1,144 +1,119 @@
-#define GLAD_GL_IMPLEMENTATION // Necessary for the header-only version.
+// INCLUDES //
+#define GLAD_GL_IMPLEMENTATION
 #include "../glad/gl.h"
 
-#include <SFML/Window.hpp>
-#include <SFML/Graphics/Image.hpp>
-
-#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include "include/setup.hh"
+#include "include/hotshaders.hh"
+#include "include/model.hh"
+
 #include <iostream>
 #include <cstdlib>
-#include <fstream>
-#include <sstream>
 #include <string>
+#include <unordered_map>
+#include <memory>
 
-#include "../include/hotshaders.hh"
-#include "../include/model.hh"
-
-class Setup
-{
-	public:
-		sf::Window* window;
-
-		Setup()
-		{
-			// settings
-			sf::ContextSettings settings;
-			settings.depthBits=32;
-			settings.stencilBits=8;
-			settings.antiAliasingLevel=4;
-			settings.attributeFlags=sf::ContextSettings::Attribute::Core;
-			settings.majorVersion=4;
-			settings.minorVersion=1;
-
-			// window
-			window=new sf::Window(sf::VideoMode({800, 600}), "FisChinG", sf::Style::Default, sf::State::Windowed, settings);
-			window->setVerticalSyncEnabled (true);
-			if(!window->setActive(true))
-			{
-				std::cerr<<"Failure: error during SFML OpenGL Activation."<<std::endl;
-				exit(1);
-			}
-
-			// window info
-			sf::ContextSettings gotten = window->getSettings();
-			std::cout<<"depth bits: "<<gotten.depthBits<<std::endl;
-			std::cout<<"stencil bits: " << gotten.stencilBits<<std::endl;
-			std::cout<<"antialiasing level: "<<gotten.antiAliasingLevel<<std::endl;
-			std::cout<<"SFML GL version: "<<gotten.majorVersion<<"."<<gotten.minorVersion<<std::endl;
-			
-			// glad info
-			int version=gladLoadGL(sf::Context::getFunction);
-			if(!version)
-			{
-				std::cerr<<"Failure: error during glad loading."<<std::endl;
-				exit(1);
-			}
-		}
-
-		~Setup()
-		{
-			delete window;
-		}
-};
-
-class ResourcesManager
+// MODEL COLLECTION //
+class ModelCollection
 {
 	private:
-		std::string dirname="resources/";
-		std::unordered_map<std::string, Model*> models;
+    std::unordered_map<std::string, std::unique_ptr<Model>> models;
 
 	public:
-		Model& loadModel(const std::string& objName, const std::string& textureName)
+		ModelCollection()=default;
+		Model& load(const std::string& name, const std::string& objPath, const std::string& texturePath)
 		{
-			auto model_iterator=models.find(objName);
-			if(model_iterator!=models.end()) return *(model_iterator->second);
-
-			Model* model=new Model(dirname+objName, dirname+textureName);
-			models[objName]=model;
-			return *model;
+			std::unique_ptr<Model> model=std::make_unique<Model>(objPath, texturePath);
+			models[name]=std::move(model);
+			return *models[name];
 		}
-
-		~ResourcesManager()
+		Model& get(const std::string& name)
 		{
-			for(auto& [name, model]:models) delete model;
+			return *models.at(name);
 		}
 };
 
+// ENTITY //
 struct Entity
 {
-	const Model* model;
-	glm::mat4 transform;
+	private:
+		const Model* model;
+		glm::vec3 position;
+		glm::vec3 rotation;
+
+	public:
+		Entity(const Model* model, glm::vec3 position, glm::vec3 rotation):model(model), position(position), rotation(rotation) {}
+		
+		glm::mat4 getTransform() const
+		{
+			glm::mat4 transform=glm::translate(glm::mat4{1.0f}, position);
+			transform=glm::rotate(transform, glm::radians(rotation.x), glm::vec3{1.0f, 0.0f, 0.0f});
+			transform=glm::rotate(transform, glm::radians(rotation.y), glm::vec3{0.0f, 1.0f, 0.0f});
+			transform=glm::rotate(transform, glm::radians(rotation.z), glm::vec3{0.0f, 0.0f, 1.0f});
+			return transform;
+		}
+
+		void draw() const
+		{
+			model->draw();
+		}
 };
 
+// SCENE //
 class Scene
 {
 	private:
-		std::vector<Entity> entities;
+		ModelCollection models;
+		std::vector<std::unique_ptr<Entity>> entities;
 
 		GLint transform_loc;
 
 	public:
-		// constructor
-		Scene(Shaders& shaders)
-		{
-			transform_loc=glGetUniformLocation(shaders.program, "transform");
-		}
-
-		// add entity
-		void addEntity(const std::string& entityName, const Model& model, glm::mat4 transform)
-		{
-			entities.push_back({&model, transform});
-		}
-		
-		// draw
-		void draw()
-		{
-			glEnable(GL_DEPTH_TEST);
-
-			for(Entity& entity:entities)
-			{
-				glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity.transform));
-				entity.model->draw();
-			}
-		}
+		Scene(Shaders& shaders);
+		void addModel(const std::string& model_name, const std::string& obj_path, const std::string& texture_path);
+		void addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation);
+		void draw(Shaders& shaders);
 };
 
-
-void loadScene(ResourcesManager& resources, Scene& scene)
+Scene::Scene(Shaders& shaders)
 {
-	Model& fish_model=resources.loadModel("fish.obj", "fish.png");
+	transform_loc=glGetUniformLocation(shaders.program, "transform");
+}
 
-	glm::mat4 fish1_trasform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.4f, 0.0f));
-	fish1_trasform=glm::rotate(fish1_trasform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+// add entity
+void Scene::addModel(const std::string& model_name, const std::string& obj_path, const std::string& texture_path)
+{
+	models.load(model_name, obj_path, texture_path);
+}
+void Scene::addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation)
+{
 
-	glm::mat4 fish2_trasform=glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -0.4f, 0.0f));
-	fish2_trasform=glm::rotate(fish2_trasform, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	entities.push_back(std::make_unique<Entity>(&models.get(model_name), position, rotation));
+}
 
-	scene.addEntity("fish1", fish_model, fish1_trasform);
-	scene.addEntity("fish2", fish_model, fish2_trasform);
+// draw
+void Scene::draw(Shaders& shaders)
+{
+	glUseProgram(shaders.program);
+	glEnable(GL_DEPTH_TEST);
+	
+	for(auto& entity : entities)
+	{
+		glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity->getTransform()));
+		entity->draw();
+	}
+}
+
+// MAIN //
+
+void loadScene(Scene& scene)
+{
+	std::string fish="fish";
+	scene.addModel(fish, "resources/fish.obj", "resources/fish.png");
+	scene.addEntity(fish, glm::vec3(0.0f, 0.4f, 0.0f), glm::vec3(0.0f, 90.0f, 0.0f));
+	scene.addEntity(fish, glm::vec3(0.0f, -0.4f, 0.0f), glm::vec3(0.0f, -90.0f, 0.0f));
 }
 
 int main()
@@ -148,13 +123,11 @@ int main()
 	sf::Window& window=*setup.window;
 
 	// shaders
-	Shaders shaders("Tappa02/vertex.vert", "Tappa02/fragment.frag");
-	glUseProgram(shaders.program);
+	Shaders shaders("Tappa02/shader.vert", "Tappa02/shader.frag");
 
 	// resources and scene setup
-	ResourcesManager resources;
 	Scene scene(shaders);
-	loadScene(resources, scene);
+	loadScene(scene);
 
 	// main loop
 	while(window.isOpen())
@@ -168,7 +141,7 @@ int main()
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		scene.draw();
+		scene.draw(shaders);
 		window.display();
 	}
 	return 0;
