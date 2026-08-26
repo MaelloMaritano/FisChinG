@@ -75,93 +75,95 @@ class Rod:public Entity
 		glm::vec3 base_position;
 		glm::vec3 base_rotation;
 	public:
-		Rod(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):Entity(model, position, rotation, movement)
-		{
-			base_position=position;
-			base_rotation=rotation;
-		}
-
-		void update(float delta_time) override
-		{
-			timer+=delta_time;
-			switch(state)
-			{
-				case SWAYING:
-					if(timer>=sway_step_time)
-					{
-						timer=0.0f;
-						sway_angle=glm::clamp(sway_angle+sway_direction*max_sway_angle, (max_sway_angle*-1.0f), max_sway_angle);
-						if(sway_angle<=(max_sway_angle*-1.0f) || sway_angle>=max_sway_angle) sway_direction*=-1.0f;
-					}
-					break;
-				case SHAKING:
-					if(timer>=shake_step_time)
-					{
-						timer=0.0f;
-						shake_offset=glm::vec3(0.01f*shake_direction, 0.01f*shake_direction, 0.0f);
-						shake_direction*=-1.0f;
-					}
-					break;
-				case LIFTING:
-					if(timer>=lift_step_time)
-					{
-						timer=0.0f;
-						lift_progress=glm::clamp(lift_progress+lift_step_amount, 0.0f, 1.0f);
-						if(lift_progress>=1.0f) setState(LIFTED);
-					}
-					break;
-				case LOWERING:
-					if(timer>=lift_step_time)
-					{
-						timer=0.0f;
-						lift_progress=glm::clamp(lift_progress-lift_step_amount, 0.0f, 1.0f);
-						if(lift_progress<=0.0f) setState(LOWERED);
-					}
-					break;
-				case LOWERED:
-					setState(SWAYING);
-					break;
-				default:
-					break;
-			}
-			
-			// apply transform changes
-			position=base_position;
-			rotation=base_rotation;
-			
-			if(state!=SWAYING) sway_angle=0.0f;
-			rotation.y+=sway_angle;
-			if(state!=SHAKING) shake_offset=glm::vec3(0.0f);
-			position+=shake_offset;
-
-			position.y+=0.45f*lift_progress;
-			rotation.x+=45.0f*lift_progress;
-			rotation.y+=(-4.5f)*lift_progress;
-		}
-
-		void testState(RodState new_state) {setState(new_state);} // just for this version
+		Rod(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement);
+		void update(float delta_time) override;
+		void testState(RodState new_state) {setState(new_state);} // just for testing versions
 	private:
-		void setState(RodState new_state)
-		{
-			if(state!=new_state)
-			{
-				if(state==LIFTING && new_state!=LIFTED) return;
-				if(state==LIFTED && new_state!=LOWERING) return;
-				if(state==LOWERING && new_state!=LOWERED) return;
-
-				state=new_state;
-				timer=0.0f;
-			}
-		}
+		void setState(RodState new_state);
 };
+
+Rod::Rod(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):Entity(model, position, rotation, movement)
+{
+	base_position=position;
+	base_rotation=rotation;
+}
+
+void Rod::update(float delta_time)
+{
+	timer+=delta_time;
+	switch(state)
+	{
+		case SWAYING:
+			if(timer>=sway_step_time)
+			{
+				timer=0.0f;
+				sway_angle=glm::clamp(sway_angle+sway_direction*max_sway_angle, (max_sway_angle*-1.0f), max_sway_angle);
+				if(sway_angle<=(max_sway_angle*-1.0f) || sway_angle>=max_sway_angle) sway_direction*=-1.0f;
+			}
+			break;
+		case SHAKING:
+			if(timer>=shake_step_time)
+			{
+				timer=0.0f;
+				shake_offset=glm::vec3(0.01f*shake_direction, 0.01f*shake_direction, 0.0f);
+				shake_direction*=-1.0f;
+			}
+			break;
+		case LIFTING:
+			if(timer>=lift_step_time)
+			{
+				timer=0.0f;
+				lift_progress=glm::clamp(lift_progress+lift_step_amount, 0.0f, 1.0f);
+				if(lift_progress>=1.0f) setState(LIFTED);
+			}
+			break;
+		case LOWERING:
+			if(timer>=lift_step_time)
+			{
+				timer=0.0f;
+				lift_progress=glm::clamp(lift_progress-lift_step_amount, 0.0f, 1.0f);
+				if(lift_progress<=0.0f) setState(LOWERED);
+			}
+			break;
+		case LOWERED:
+			setState(SWAYING);
+			break;
+		default:
+			break;
+	}
+	
+	// apply transform changes
+	position=base_position;
+	rotation=base_rotation;
+	
+	if(state!=SWAYING) sway_angle=0.0f;
+	rotation.y+=sway_angle;
+	if(state!=SHAKING) shake_offset=glm::vec3(0.0f);
+	position+=shake_offset;
+
+	position.y+=0.45f*lift_progress;
+	rotation.x+=45.0f*lift_progress;
+	rotation.y+=(-4.5f)*lift_progress;
+}
+
+void Rod::setState(RodState new_state)
+{
+	if(state!=new_state)
+	{
+		if(state==LIFTING && new_state!=LIFTED) return;
+		if(state==LIFTED && new_state!=LOWERING) return;
+		if(state==LOWERING && new_state!=LOWERED) return;
+
+		state=new_state;
+		timer=0.0f;
+	}
+}
 
 
 // CAMERA //
 class Camera
 {
 	private:
-		glm::vec3 position;
-		glm::vec3 rotation;
 		glm::mat4 view_matrix;
 		glm::mat4 projection_matrix;
 		// glm::mat4 view_projection_matrix;
@@ -299,7 +301,7 @@ int main()
 	Camera camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), window.getSize().x, window.getSize().y);
 	Scene scene(shaders, camera);
 	loadScene(scene);
-	Rod* rod=scene.addEntity<Rod>("rod", glm::vec3(-0.03f, -0.15f, -3.28f), glm::vec3(0.0f), false);
+	Rod* rod=scene.addEntity<Rod>("rod", glm::vec3(-0.03f, -0.15f, -3.28f), glm::vec3(0.0f), false); // here just for testing
 
 	// clock
 	sf::Clock clock;
@@ -321,6 +323,7 @@ int main()
 		}
 
 		// test
+		delta_time=clock.restart().asSeconds();
 		timer+=delta_time;
 
 		if(timer<5) rod->testState(rod->SWAYING);
@@ -329,7 +332,6 @@ int main()
 		else if(timer>15) rod->testState(rod->LOWERING);
 		if(timer>16) timer=0.0f;
 
-		delta_time=clock.restart().asSeconds();
 		scene.update(delta_time);
 
 		// clear - draw - display

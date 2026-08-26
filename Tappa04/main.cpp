@@ -47,8 +47,6 @@ struct Entity
 class Camera
 {
 	private:
-		glm::vec3 position;
-		glm::vec3 rotation;
 		glm::mat4 view_matrix;
 		glm::mat4 projection_matrix;
 		// glm::mat4 view_projection_matrix;
@@ -198,6 +196,7 @@ int main()
 		}
 
 		delta_time=clock.restart().asSeconds();
+		
 		scene.update(delta_time);
 
 		// clear - draw - display
