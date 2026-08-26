@@ -135,9 +135,6 @@ void Rod::update(float delta_time)
 				if(lift_progress<=0.0f) setState(LOWERED);
 			}
 			break;
-		case LOWERED:
-			setState(SWAYING);
-			break;
 		default:
 			break;
 	}
@@ -403,9 +400,9 @@ void Scene::draw(Shaders& shaders)
 class Game
 {
 	private:
-		Shaders& shaders;
-		Camera& camera;
-		Scene& scene;
+		Shaders shaders;
+		Camera camera;
+		Scene scene;
 
 		Rod* rod;
 		Fish* fish;
@@ -442,7 +439,12 @@ void Game::update()
 	switch(state)
 	{
 		case WAITING:
-			if(bait_time<=0.0f) bait_time=rand()%5+1;
+			if(bait_time<=0.0f)
+			{
+				bait_time=rand()%10+2;
+				timer=0.0f;
+				rod->setState(rod->SWAYING);
+			}
 			if(timer>=bait_time)
 			{
 				state=REELING;
@@ -453,8 +455,7 @@ void Game::update()
 			// minigame
 			break;
 		case CATCHING:
-			rod->setState(rod->LIFTING);
-			camera.setState(camera.BACKING);
+			// in handle(mouse_pressed) lifting rod and backing camera
 			if(rod->getState()==rod->LIFTED && camera.getState()==camera.BACK)
 			{
 				fish->show();
@@ -465,9 +466,7 @@ void Game::update()
 			// if click rod go down
 			break;
 		case RESET:
-			fish->hide();
-			rod->setState(rod->LOWERING);
-			camera.setState(camera.ADVANCING);
+			// in handle(mouse_pressed) lowering rod and advancing camera
 			if(rod->getState()==rod->LOWERED && camera.getState()==camera.FORWARD)
 			{
 				bait_time=0.0f;
@@ -511,8 +510,19 @@ void Game::handle(const sf::Event::Resized& resized)
 
 void Game::handle(const sf::Event::MouseButtonPressed& mouse_pressed)
 {
-	if(state==REELING) state=CATCHING;
-	else if(state==CAUGHT) state=RESET;
+	if(state==REELING)
+	{
+		state=CATCHING;
+		rod->setState(rod->LIFTING);
+		camera.setState(camera.BACKING);
+	}
+	else if(state==CAUGHT)
+	{
+		state=RESET;
+		fish->hide();
+		rod->setState(rod->LOWERING);
+		camera.setState(camera.ADVANCING);
+	}
 }
 
 
@@ -533,7 +543,10 @@ int main()
 		{
 			if(event->is<sf::Event::Closed>()) window.close();
 			else if(const auto* resized=event->getIf<sf::Event::Resized>()) game.handle(*resized);
+			else if(const auto* mouse_pressed=event->getIf<sf::Event::MouseButtonPressed>()) game.handle(*mouse_pressed);
 		}
+
+		game.update();
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
