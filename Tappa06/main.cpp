@@ -40,7 +40,7 @@ class Entity
 		bool moves() const {return movement;}
 
 		virtual void update(float delta_time) {}
-		void draw() const {model->draw();}
+		virtual void draw() const {model->draw();}
 };
 
 class Rod:public Entity
@@ -173,6 +173,7 @@ class Fish:public Entity
 	public:
 		Fish(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement);
 		void update(float delta_time) override;
+		void draw() const override;
 		void testShow() {show();} // just for testing versions
 		void testHide() {hide();} // just for testing versions
 	private:
@@ -198,6 +199,11 @@ void Fish::update(float delta_time)
 	}
 	rotation=base_rotation;
 	rotation.y+=360.0f*progress;
+}
+
+void Fish::draw() const
+{
+	if(visible) model->draw();
 }
 
 
@@ -406,7 +412,7 @@ void loadScene(Scene& scene)
 	scene.addEntity<Entity>("water", glm::vec3(0.0f), glm::vec3(0.0f), true);
 
 	scene.addModel("rod", "resources/rod.obj", "resources/rod.png");
-	scene.addModel("fish", "resources/fish.obj", "resources/fish.png");
+	scene.addModel("fish", "resources/fish_smol.obj", "resources/fish.png");
 }
 
 int main()
