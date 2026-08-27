@@ -6,9 +6,9 @@
 #include "include/hotshaders.hh"
 #include "include/model.hh"
 #include "include/modelCollection.hh"
-
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include "include/entity.hh"
+#include "include/camera.hh"
+#include "include/scene.hh"
 
 #include <iostream>
 #include <cstdlib>
@@ -16,393 +16,189 @@
 #include <memory>
 
 
-// GAME STATE //
-enum GameState
-{
-	WAITING,
-	REELING,
-	CATCHING,
-	CAUGHT,
-	RESET
-};
-
-
-// ENTITY //
-class Entity
-{
-	protected:
-		const Model* model;
-		glm::vec3 position;
-		glm::vec3 rotation;
-		bool movement;
-
-	public:
-		Entity(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):
-			model(model), position(position), rotation(rotation), movement(movement) {}
-		
-		glm::mat4 getTransform() const
-		{
-			glm::mat4 transform=glm::translate(glm::mat4{1.0f}, position);
-			transform=glm::rotate(transform, glm::radians(rotation.x), glm::vec3{1.0f, 0.0f, 0.0f});
-			transform=glm::rotate(transform, glm::radians(rotation.y), glm::vec3{0.0f, 1.0f, 0.0f});
-			transform=glm::rotate(transform, glm::radians(rotation.z), glm::vec3{0.0f, 0.0f, 1.0f});
-			return transform;
-		}
-		bool moves() const {return movement;}
-
-		virtual void update(float delta_time) {}
-		virtual void draw() const {model->draw();}
-};
-
-class Rod:public Entity
-{
-	public:
-		enum RodState
-		{
-			SWAYING,
-			SHAKING,
-			LIFTING,
-			LIFTED,
-			LOWERING,
-			LOWERED
-		};
-	private:
-		RodState state=SWAYING;
-		float timer=0.0f;
-		// swaying
-		const float sway_step_time=1.0f;
-		const float max_sway_angle=1.0f;
-		float sway_angle=0.0f;
-		float sway_direction=1.0f;
-		// shaking
-		const float shake_step_time=0.1f;
-		glm::vec3 shake_offset{0.0f};
-		float shake_direction=1.0f;
-		// lifting and lowering
-		const float lift_step_time=0.25f;
-		const float lift_step_amount=0.25f;
-		float lift_progress=0.0f;
-		// base
-		glm::vec3 base_position;
-		glm::vec3 base_rotation;
-	public:
-		Rod(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement);
-		void update(float delta_time) override;
-		RodState getState() {return state;}
-		void setState(RodState new_state);
-};
-
-Rod::Rod(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):Entity(model, position, rotation, movement)
-{
-	base_position=position;
-	base_rotation=rotation;
-}
-
-void Rod::update(float delta_time)
-{
-	timer+=delta_time;
-	switch(state)
-	{
-		case SWAYING:
-			if(timer>=sway_step_time)
-			{
-				timer=0.0f;
-				sway_angle=glm::clamp(sway_angle+sway_direction*max_sway_angle, (max_sway_angle*-1.0f), max_sway_angle);
-				if(sway_angle<=(max_sway_angle*-1.0f) || sway_angle>=max_sway_angle) sway_direction*=-1.0f;
-			}
-			break;
-		case SHAKING:
-			if(timer>=shake_step_time)
-			{
-				timer=0.0f;
-				shake_offset=glm::vec3(0.01f*shake_direction, 0.01f*shake_direction, 0.0f);
-				shake_direction*=-1.0f;
-			}
-			break;
-		case LIFTING:
-			if(timer>=lift_step_time)
-			{
-				timer=0.0f;
-				lift_progress=glm::clamp(lift_progress+lift_step_amount, 0.0f, 1.0f);
-				if(lift_progress>=1.0f) setState(LIFTED);
-			}
-			break;
-		case LOWERING:
-			if(timer>=lift_step_time)
-			{
-				timer=0.0f;
-				lift_progress=glm::clamp(lift_progress-lift_step_amount, 0.0f, 1.0f);
-				if(lift_progress<=0.0f) setState(LOWERED);
-			}
-			break;
-		default:
-			break;
-	}
-	// apply transform changes
-	position=base_position;
-	rotation=base_rotation;
-	
-	if(state!=SWAYING) sway_angle=0.0f;
-	rotation.y+=sway_angle;
-	if(state!=SHAKING) shake_offset=glm::vec3(0.0f);
-	position+=shake_offset;
-
-	position.y+=0.45f*lift_progress;
-	rotation.x+=45.0f*lift_progress;
-	rotation.y+=(-4.5f)*lift_progress;
-}
-
-void Rod::setState(RodState new_state)
-{
-	if(state!=new_state)
-	{
-		if(state==LIFTING && new_state!=LIFTED) return;
-		if(state==LIFTED && new_state!=LOWERING) return;
-		if(state==LOWERING && new_state!=LOWERED) return;
-
-		state=new_state;
-		timer=0.0f;
-	}
-}
-
-class Fish:public Entity
+// ENTITIES //
+class Button:public Entity
 {
 	private:
 		bool visible=false;
-		float timer=0.0f;
-		// spinning
-		const float step_time=0.3f;
-		const float step_amount=0.125f;
-		float progress=0.0f;
-		// base
-		glm::vec3 base_position;
-		glm::vec3 base_rotation;
 	public:
-		Fish(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement);
-		void update(float delta_time) override;
+		Button(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):
+			Entity(model, position, rotation, movement) {}
+		void update(float delta_time) {}
 		void draw() const override;
 		void show() {visible=true;}
-		void hide() {visible=false; progress=0.0f;}
+		void hide() {visible=false;}
 };
 
-Fish::Fish(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):Entity(model, position, rotation, movement)
-{
-	base_position=position;
-	base_rotation=rotation;
-}
-
-void Fish::update(float delta_time)
-{
-	if(!visible) return;
-	timer+=delta_time;
-	if(timer>=step_time)
-	{
-		timer=0.0f;
-		progress=progress+step_amount;
-		if(progress>=1.0f) progress-=1.0f;
-	}
-	rotation=base_rotation;
-	rotation.y+=360.0f*progress;
-}
-
-void Fish::draw() const
+void Button::draw() const
 {
 	if(visible) model->draw();
 }
 
 
-// CAMERA //
-class Camera
+// MINIGAME //
+class QTE
 {
 	public:
-		enum CameraState
+		enum QTEState
 		{
-			STILL,
-			BACKING,
-			BACK,
-			ADVANCING,
-			FORWARD
+			SLEEPING,
+			RUNNING,
+			SUCCESS,
+			FAILED
 		};
 	private:
-		glm::mat4 view_matrix;
-		glm::mat4 projection_matrix;
-		// glm::mat4 view_projection_matrix;
-		// for movement
-		CameraState state=STILL;
+		std::vector<Button*> buttons_black;
+		std::vector<Button*> buttons_colored;
+		QTEState state=SLEEPING;
+
 		float timer=0.0f;
-		const float step_time=0.25f;
-		const float step_amount=0.25f;
-		float progress=0.0f;
-		// base
-		glm::vec3 base_position;
-		glm::vec3 base_rotation;
+		float show_time=0.0f;
+		const float press_time=1.0f;
+
+		int times=4;
+		bool press=false;
+		int button_to_press=0;
 	public:
-		Camera(glm::vec3 position, glm::vec3 rotation, float width, float height);
-		glm::mat4 getViewProjectionMatrix() const;
-		void updateProjection(float width, float height);
+		QTE(Scene& scene);
+		void start();
 		void update(float delta_time);
-		CameraState getState() {return state;}
-		void setState(CameraState new_state);
-};
-
-Camera::Camera(glm::vec3 position, glm::vec3 rotation, float width, float height)
-{
-	base_position=position;
-	base_rotation=rotation;
-	view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-	view_matrix=glm::rotate(view_matrix, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-	view_matrix=glm::translate(view_matrix, -position);
-
-	updateProjection(width, height);
-}
-
-glm::mat4 Camera::getViewProjectionMatrix() const
-{
-	return projection_matrix*view_matrix;
-}
-
-void Camera::updateProjection(float width, float height)
-{
-	projection_matrix=glm::perspective(glm::radians(50.0f), width/height, 0.1f, 100.0f);
-}
-
-void Camera::update(float delta_time)
-{
-	timer+=delta_time;
-	switch(state)
-	{
-		case STILL:
-			break;
-		case BACKING:
-			if(timer>=step_time)
-			{
-				timer=0.0f;
-				progress=glm::clamp(progress+step_amount, 0.0f, 1.0f);
-				if(progress>=1.0f) setState(BACK);
-			}
-			break;
-		case ADVANCING:
-			if(timer>=step_time)
-			{
-				timer=0.0f;
-				progress=glm::clamp(progress-step_amount, 0.0f, 1.0f);
-				if(progress<=0.0f) setState(FORWARD);
-			}
-			break;
-		case FORWARD:
-			setState(STILL);
-			break;
-		default:
-			break;
-	}
-	// apply transform changes
-	glm::vec3 current_position=base_position;
-	glm::vec3 current_rotation=base_rotation;
-
-	current_position.z+=0.2f*progress;
-
-	view_matrix=glm::rotate(glm::mat4(1.0f), glm::radians(current_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-	view_matrix=glm::rotate(view_matrix, glm::radians(current_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-	view_matrix=glm::translate(view_matrix, -current_position);
-}
-
-void Camera::setState(CameraState new_state)
-{
-	if(state!=new_state)
-	{
-		if(state==BACKING && new_state!=BACK) return;
-		if(state==BACK && new_state!=ADVANCING) return;
-		if(state==ADVANCING && new_state!=FORWARD) return;
-
-		state=new_state;
-		timer=0.0f;
-	}
-}
-
-
-// SCENE //
-class Scene
-{
+		void handle(const sf::Event::KeyPressed& key_pressed);
+		QTEState getState() {return state;}
+		void setState(QTEState new_state) {state=new_state;}
 	private:
-		ModelCollection models;
-		std::vector<std::unique_ptr<Entity>> entities;
-		Camera& camera;
-
-		GLint transform_loc;
-		GLint view_projection_loc;
-		GLint offset_loc;
-
-		const float uv_step_time=1.0f;
-		const float uv_max_offset=0.003;
-		float timer=0.0f;
-		float uv_step=0.0005f;
-		float uv_offset=0.0f;
-
-	public:
-		Scene(Shaders& shaders, Camera& camera);
-		void addModel(const std::string& model_name, const std::string& obj_path, const std::string& texture_path);
-		template <typename T>
-		T* addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation, bool movement); // returns T* for rod testing
-		void update(float delta_time);
-		void draw(Shaders& shaders);
+		void success();
+		void fail();
+		void end();
 };
 
-Scene::Scene(Shaders& shaders, Camera& camera):camera(camera)
+QTE::QTE(Scene& scene)
 {
-	transform_loc=glGetUniformLocation(shaders.program, "transform");
-	view_projection_loc=glGetUniformLocation(shaders.program, "view_projection");
-	offset_loc=glGetUniformLocation(shaders.program, "offset");
+	float offset=0.03;
+	scene.addModel("button_black", "resources/button_smol.obj", "resources/button_black.png");
+	Button* button_black_up=scene.addEntity<Button>("button_black", glm::vec3(0.0f, 0.36f+offset, -2.7f), glm::vec3(0.0f), false);
+	Button* button_black_right=scene.addEntity<Button>("button_black", glm::vec3(0.0f+offset, 0.36f, -2.7f), glm::vec3(0.0f), false);
+	Button* button_black_down=scene.addEntity<Button>("button_black", glm::vec3(0.0f, 0.36f-offset, -2.7f), glm::vec3(0.0f), false);
+	Button* button_black_left=scene.addEntity<Button>("button_black", glm::vec3(0.0f-offset, 0.36f, -2.7f), glm::vec3(0.0f), false);
+
+	buttons_black.push_back(button_black_up);
+	buttons_black.push_back(button_black_right);
+	buttons_black.push_back(button_black_down);
+	buttons_black.push_back(button_black_left);
+
+	scene.addModel("button_colored", "resources/button_big.obj", "resources/button_colored.png");
+	Button* button_colored_up=scene.addEntity<Button>("button_colored", glm::vec3(0.0f, 0.36f+offset, -2.7f), glm::vec3(0.0f, 0.0f, 90.0f), false);
+	Button* button_colored_right=scene.addEntity<Button>("button_colored", glm::vec3(0.0f+offset, 0.36f, -2.7f), glm::vec3(0.0f, 0.0f, 0.0f), false);
+	Button* button_colored_down=scene.addEntity<Button>("button_colored", glm::vec3(0.0f, 0.36f-offset, -2.7f), glm::vec3(0.0f, 0.0f, -90.0f), false);
+	Button* button_colored_left=scene.addEntity<Button>("button_colored", glm::vec3(0.0f-offset, 0.36f, -2.7f), glm::vec3(0.0f, 0.0f, 180.0f), false);
+
+	buttons_colored.push_back(button_colored_up);
+	buttons_colored.push_back(button_colored_right);
+	buttons_colored.push_back(button_colored_down);
+	buttons_colored.push_back(button_colored_left);
 }
 
-void Scene::addModel(const std::string& model_name, const std::string& obj_path, const std::string& texture_path)
+void QTE::start()
 {
-	models.load(model_name, obj_path, texture_path);
-}
-template <typename T>
-T* Scene::addEntity(const std::string& model_name, glm::vec3 position, glm::vec3 rotation, bool movement)
-{
-	std::unique_ptr<T> entity=std::make_unique<T>(&models.get(model_name), position, rotation, movement);
-	T* ptr=entity.get();
-	entities.push_back(std::move(entity));
-	return ptr;
+	state=RUNNING;
+	for(Button* button:buttons_black) button->show();
+	button_to_press=rand()%4;
+	show_time=rand()%3+1;
+	times=4;
 }
 
-void Scene::update(float delta_time)
+void QTE::update(float delta_time)
 {
 	timer+=delta_time;
-	for(auto& entity:entities) entity->update(delta_time);
-	camera.update(delta_time);
-	if(timer>=uv_step_time)
+
+	if(!press && timer>=show_time)
 	{
+		buttons_colored.at(button_to_press)->show();
+		timer=0;
+		press=true;
+	}
+	if(press && timer>=press_time) fail();
+}
+
+void QTE::handle(const sf::Event::KeyPressed& key_pressed)
+{
+	if(press)
+	{
+		switch(key_pressed.code)
+		{
+			case sf::Keyboard::Key::Up:
+				if(button_to_press==0) success();
+				else fail();
+				break;
+			case sf::Keyboard::Key::Right:
+				if(button_to_press==1) success();
+				else fail();
+				break;
+			case sf::Keyboard::Key::Down:
+				if(button_to_press==2) success();
+				else fail();
+				break;
+			case sf::Keyboard::Key::Left:
+				if(button_to_press==3) success();
+				else fail();
+				break;
+			default:
+				break;
+		}
+	}
+	else fail();
+}
+
+void QTE::success()
+{
+	press=false;
+	times--;
+	if(times<=0)
+	{
+		state=SUCCESS;
+		end();
+	}
+	else
+	{
+		buttons_colored.at(button_to_press)->hide();
+		button_to_press=rand()%4;
+		show_time=rand()%3+2;
 		timer=0.0f;
-		uv_offset+=uv_step;
-		if(uv_offset>=uv_max_offset || uv_offset<=(uv_max_offset*-0.1f) ) uv_step*=-1.0f;
 	}
 }
 
-void Scene::draw(Shaders& shaders)
+void QTE::fail()
 {
-	glUseProgram(shaders.program);
-	glEnable(GL_DEPTH_TEST);
-	
-	for(auto& entity:entities)
-	{
-		glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity->getTransform()));
-		glUniformMatrix4fv(view_projection_loc, 1, GL_FALSE, glm::value_ptr(camera.getViewProjectionMatrix()));
-		if(entity->moves()) glUniform1f(offset_loc, uv_offset);
-		else glUniform1f(offset_loc, 0.0f);
-		entity->draw();
-	}
+	press=false;
+	state=FAILED;
+	end();
+}
+
+void QTE::end()
+{
+	for(Button* button:buttons_black) button->hide();
+	for(Button* button:buttons_colored) button->hide();
+	timer=0.0f;
 }
 
 
 // GAME //
 class Game
 {
+	public:
+		enum GameState
+		{
+			WAITING,
+			REELING,
+			CATCHING,
+			CAUGHT,
+			RESET
+		};
 	private:
 		Shaders shaders;
 		Camera camera;
 		Scene scene;
+		QTE qte;
 
 		Rod* rod;
 		Fish* fish;
@@ -420,12 +216,13 @@ class Game
 		// handles
 		void handle(const sf::Event::Resized& resized);
 		void handle(const sf::Event::MouseButtonPressed& mouse_pressed);
+		void handle(const sf::Event::KeyPressed& key_pressed);
 	private:
 		void loadScene();
 };
 
 Game::Game(float width, float height):
-	shaders(Shaders("Tappa08/shader.vert", "Tappa08/shader.frag")), camera(Camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), width, height)), scene(Scene(shaders, camera))
+	shaders(Shaders("Tappa08/shader.vert", "Tappa08/shader.frag")), camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), width, height), scene(shaders, camera), qte(scene)
 {
 	srand(time(0));
 	loadScene();
@@ -444,6 +241,7 @@ void Game::update()
 				bait_time=rand()%10+2;
 				timer=0.0f;
 				rod->setState(rod->SWAYING);
+				qte.setState(qte.SLEEPING);
 			}
 			if(timer>=bait_time)
 			{
@@ -452,10 +250,28 @@ void Game::update()
 			}
 			break;
 		case REELING:
-			// minigame
+			switch(qte.getState())
+			{
+				case qte.SLEEPING:
+					qte.start();
+					break;
+				case qte.RUNNING:
+					qte.update(delta_time);
+					break;
+				case qte.SUCCESS:
+					state=CATCHING;
+					rod->setState(rod->LIFTING);
+					camera.setState(camera.BACKING);
+					break;
+				case qte.FAILED:
+					rod->setState(rod->LOWERING);
+					state=RESET;
+					break;
+				default:
+					break;
+			}
 			break;
 		case CATCHING:
-			// in handle(mouse_pressed) lifting rod and backing camera
 			if(rod->getState()==rod->LIFTED && camera.getState()==camera.BACK)
 			{
 				fish->show();
@@ -469,6 +285,7 @@ void Game::update()
 			// in handle(mouse_pressed) lowering rod and advancing camera
 			if(rod->getState()==rod->LOWERED && camera.getState()==camera.FORWARD)
 			{
+				timer=0.0f;
 				bait_time=0.0f;
 				state=WAITING;
 			}
@@ -510,18 +327,24 @@ void Game::handle(const sf::Event::Resized& resized)
 
 void Game::handle(const sf::Event::MouseButtonPressed& mouse_pressed)
 {
-	if(state==REELING)
+	if(state==CAUGHT)
 	{
-		state=CATCHING;
-		rod->setState(rod->LIFTING);
-		camera.setState(camera.BACKING);
-	}
-	else if(state==CAUGHT)
-	{
-		state=RESET;
 		fish->hide();
 		rod->setState(rod->LOWERING);
 		camera.setState(camera.ADVANCING);
+		state=RESET;
+	}
+}
+
+void Game::handle(const sf::Event::KeyPressed& key_pressed)
+{
+	if(qte.getState()==qte.RUNNING) qte.handle(key_pressed);
+	if(state==CAUGHT)
+	{
+		fish->hide();
+		rod->setState(rod->LOWERING);
+		camera.setState(camera.ADVANCING);
+		state=RESET;
 	}
 }
 
@@ -544,6 +367,7 @@ int main()
 			if(event->is<sf::Event::Closed>()) window.close();
 			else if(const auto* resized=event->getIf<sf::Event::Resized>()) game.handle(*resized);
 			else if(const auto* mouse_pressed=event->getIf<sf::Event::MouseButtonPressed>()) game.handle(*mouse_pressed);
+			else if(const auto* key_pressed=event->getIf<sf::Event::KeyPressed>()) game.handle(*key_pressed);
 		}
 
 		game.update();

@@ -31,6 +31,8 @@ class Setup
 				exit(1);
 			}
 
+			window->setKeyRepeatEnabled(false);
+
 			// window info
 			sf::ContextSettings gotten = window->getSettings();
 			std::cout<<"depth bits: "<<gotten.depthBits<<std::endl;
