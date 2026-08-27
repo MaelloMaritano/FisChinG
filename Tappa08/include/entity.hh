@@ -151,7 +151,7 @@ class Fish:public Entity
 		float timer=0.0f;
 		// spinning
 		const float step_time=0.3f;
-		const float step_amount=0.125f;
+		const float step_amount=0.1f;
 		float progress=0.0f;
 		// base
 		glm::vec3 base_position;
