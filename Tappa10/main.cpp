@@ -10,6 +10,8 @@
 #include "include/camera.hh"
 #include "include/scene.hh"
 
+#include <SFML/Graphics.hpp>
+
 #include <iostream>
 #include <cstdlib>
 #include <string>
@@ -66,7 +68,6 @@ class QTE
 		void handle(const sf::Event::KeyPressed& key_pressed);
 		QTEState getState() {return state;}
 		void setState(QTEState new_state) {state=new_state;}
-		int getPoints() {return times;}
 	private:
 		void success();
 		void fail();
@@ -213,10 +214,11 @@ class Game
 		float bait_time=0.0f;
 
 		int points=0;
+		int next_points=0;
 	public:
 		Game(float width, float height);
 		void update();
-		void render();
+		void render(sf::RenderWindow& window);
 		// handles
 		void handle(const sf::Event::Resized& resized);
 		void handle(const sf::Event::MouseButtonPressed& mouse_pressed);
@@ -279,7 +281,7 @@ void Game::update()
 		case CATCHING:
 			if(rod->getState()==rod->LIFTED && camera.getState()==camera.BACK)
 			{
-				points+=qte.getPoints();
+				points+=next_points;
 				current_fish->show();
 				state=CAUGHT;
 			}
@@ -302,10 +304,10 @@ void Game::update()
 	scene.update(delta_time);
 }
 
-void Game::render()
+void Game::render(sf::RenderWindow& window)
 {
-	const sf::Font font(resources/"PixelifySans-Regular.ttf");
-	sf::Text text(font, "Points: "+points);
+	const sf::Font font("resources/PixelifySans-Regular.ttf");
+	sf::Text text(font, "Points: "+std::to_string(points));
 	text.setFillColor(sf::Color(167, 160, 72, 255));
 	text.setPosition({10.0f, 10.0f});
 
@@ -357,28 +359,29 @@ int Game::selectFish()
 	if(n<=4)
 	{
 		current_fish=fish.at(0);
-		return 3;
+		next_points=3;
 	}
 	else if(n>=5 && n<=8)
 	{
 		current_fish=fish.at(1);
-		return 3;
+		next_points=3;
 	}
 	else if(n>=9 && n<=10)
 	{
 		current_fish=fish.at(2);
-		return 5;
+		next_points=5;
 	}
 	else if(n>=11 && n<=12)
 	{
 		current_fish=fish.at(3);
-		return 5;
+		next_points=5;
 	}
 	else if(n==13)
 	{
 		current_fish=fish.at(4);
-		return 8;
+		next_points=8;
 	}
+	return next_points;
 }
 
 void Game::handle(const sf::Event::Resized& resized)
@@ -416,7 +419,7 @@ int main()
 {
 	// setup
 	Setup setup;
-	sf::Window& window=*setup.window;
+	sf::RenderWindow& window=*setup.window;
 
 	Game game(window.getSize().x, window.getSize().y);
 
@@ -436,7 +439,7 @@ int main()
 
 		// clear - draw - display
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		game.render();
+		game.render(window);
 		window.display();
 	}
 	return 0;

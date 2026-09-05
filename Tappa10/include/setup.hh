@@ -1,7 +1,7 @@
 #ifndef SETUP_HH
 #define SETUP_HH
 
-#include <SFML/Window.hpp>
+#include <SFML/Graphics.hpp>
 
 #include <iostream>
 #include <cstdlib>
@@ -9,7 +9,7 @@
 class Setup
 {
 	public:
-		sf::Window* window;
+		sf::RenderWindow* window;
 
 		Setup()
 		{
@@ -18,12 +18,12 @@ class Setup
 			settings.depthBits=32;
 			settings.stencilBits=8;
 			settings.antiAliasingLevel=4;
-			settings.attributeFlags=sf::ContextSettings::Attribute::Core;
+			//settings.attributeFlags=sf::ContextSettings::Attribute::Core;
 			settings.majorVersion=4;
 			settings.minorVersion=1;
 
 			// window
-			window=new sf::Window(sf::VideoMode({800, 600}), "FisChinG", sf::Style::Default, sf::State::Windowed, settings);
+			window=new sf::RenderWindow(sf::VideoMode({800, 600}), "FisChinG", sf::Style::Default, sf::State::Windowed, settings);
 			window->setVerticalSyncEnabled (true);
 			if(!window->setActive(true))
 			{
