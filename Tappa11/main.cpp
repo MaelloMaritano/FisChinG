@@ -87,7 +87,10 @@ Game::Game(float width, float height):
 		exit(1);
 	}
 	ambiance_sound.setLooping(true);
+	ambiance_sound.play();
 	shaking_sound.setLooping(true);
+	shaking_sound.setVolume(35.0f);
+	success_sound.setVolume(35.0f);
 }
 
 void Game::update()
@@ -98,7 +101,7 @@ void Game::update()
 	switch(state)
 	{
 		case START:
-			ambiance_sound.play();
+			// if click go on
 			break;
 		case WAITING:
 			if(bait_time<=0.0f)
@@ -115,11 +118,11 @@ void Game::update()
 			}
 			break;
 		case REELING:
-			shaking_sound.play();
 			switch(qte.getState())
 			{
 				case qte.SLEEPING:
 					qte.start(selectFish());
+					shaking_sound.play();
 					break;
 				case qte.RUNNING:
 					qte.update(delta_time);
@@ -128,18 +131,21 @@ void Game::update()
 					state=CATCHING;
 					rod->setState(rod->LIFTING);
 					camera.setState(camera.BACKING);
+					shaking_sound.stop();
+					success_sound.play();
 					break;
 				case qte.FAILED:
-					rod->setState(rod->LOWERING);
-					state=RESET;
+					rod->setState(rod->LOWERED);
+					timer=0.0f;
+					bait_time=0.0f;
+					state=WAITING;
+					shaking_sound.stop();
 					break;
 				default:
 					break;
 			}
 			break;
 		case CATCHING:
-			shaking_sound.stop();
-			success_sound.play();
 			if(rod->getState()==rod->LIFTED && camera.getState()==camera.BACK)
 			{
 				points+=next_points;
@@ -151,14 +157,13 @@ void Game::update()
 			// if click rod go down
 			break;
 		case RESET:
-			shaking_sound.stop();
-			success_sound.stop();
 			// in handle(mouse_pressed) lowering rod and advancing camera
 			if(rod->getState()==rod->LOWERED && camera.getState()==camera.FORWARD)
 			{
 				timer=0.0f;
 				bait_time=0.0f;
 				state=WAITING;
+				success_sound.play();
 			}
 			break;
 		default:
