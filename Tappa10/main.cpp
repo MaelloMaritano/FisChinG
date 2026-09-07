@@ -9,6 +9,7 @@
 #include "include/entity.hh"
 #include "include/camera.hh"
 #include "include/scene.hh"
+#include "include/qte.hh"
 
 #include <SFML/Graphics.hpp>
 
@@ -18,158 +19,13 @@
 #include <memory>
 
 
-// MINIGAME //
-class QTE
-{
-	public:
-		enum QTEState
-		{
-			SLEEPING,
-			RUNNING,
-			SUCCESS,
-			FAILED
-		};
-	private:
-		std::vector<Button*> buttons_black;
-		std::vector<Button*> buttons_colored;
-		QTEState state=SLEEPING;
-
-		float timer=0.0f;
-		float show_time=0.0f;
-		const float press_time=1.0f;
-
-		int times=4;
-		bool press=false;
-		int button_to_press=0;
-	public:
-		QTE(Scene& scene);
-		void start(int difficulty);
-		void update(float delta_time);
-		void handle(const sf::Event::KeyPressed& key_pressed);
-		QTEState getState() {return state;}
-		void setState(QTEState new_state) {state=new_state;}
-	private:
-		void success();
-		void fail();
-		void end();
-};
-
-QTE::QTE(Scene& scene)
-{
-	float offset=0.03;
-	scene.addModel("button_black", "resources/button_smol.obj", "resources/button_black.png");
-	Button* button_black_up=scene.addEntity<Button>("button_black", glm::vec3(0.0f, 0.36f+offset, -2.7f), glm::vec3(0.0f), false);
-	Button* button_black_right=scene.addEntity<Button>("button_black", glm::vec3(0.0f+offset, 0.36f, -2.7f), glm::vec3(0.0f), false);
-	Button* button_black_down=scene.addEntity<Button>("button_black", glm::vec3(0.0f, 0.36f-offset, -2.7f), glm::vec3(0.0f), false);
-	Button* button_black_left=scene.addEntity<Button>("button_black", glm::vec3(0.0f-offset, 0.36f, -2.7f), glm::vec3(0.0f), false);
-
-	buttons_black.push_back(button_black_up);
-	buttons_black.push_back(button_black_right);
-	buttons_black.push_back(button_black_down);
-	buttons_black.push_back(button_black_left);
-
-	scene.addModel("button_colored", "resources/button_big.obj", "resources/button_colored.png");
-	Button* button_colored_up=scene.addEntity<Button>("button_colored", glm::vec3(0.0f, 0.36f+offset, -2.7f), glm::vec3(0.0f, 0.0f, 90.0f), false);
-	Button* button_colored_right=scene.addEntity<Button>("button_colored", glm::vec3(0.0f+offset, 0.36f, -2.7f), glm::vec3(0.0f, 0.0f, 0.0f), false);
-	Button* button_colored_down=scene.addEntity<Button>("button_colored", glm::vec3(0.0f, 0.36f-offset, -2.7f), glm::vec3(0.0f, 0.0f, -90.0f), false);
-	Button* button_colored_left=scene.addEntity<Button>("button_colored", glm::vec3(0.0f-offset, 0.36f, -2.7f), glm::vec3(0.0f, 0.0f, 180.0f), false);
-
-	buttons_colored.push_back(button_colored_up);
-	buttons_colored.push_back(button_colored_right);
-	buttons_colored.push_back(button_colored_down);
-	buttons_colored.push_back(button_colored_left);
-}
-
-void QTE::start(int difficulty)
-{
-	state=RUNNING;
-	for(Button* button:buttons_black) button->show();
-	button_to_press=rand()%4;
-	show_time=rand()%3+1;
-	times=difficulty;
-}
-
-void QTE::update(float delta_time)
-{
-	timer+=delta_time;
-
-	if(!press && timer>=show_time)
-	{
-		buttons_colored.at(button_to_press)->show();
-		timer=0;
-		press=true;
-	}
-	if(press && timer>=press_time) fail();
-}
-
-void QTE::handle(const sf::Event::KeyPressed& key_pressed)
-{
-	if(press)
-	{
-		switch(key_pressed.code)
-		{
-			case sf::Keyboard::Key::Up:
-				if(button_to_press==0) success();
-				else fail();
-				break;
-			case sf::Keyboard::Key::Right:
-				if(button_to_press==1) success();
-				else fail();
-				break;
-			case sf::Keyboard::Key::Down:
-				if(button_to_press==2) success();
-				else fail();
-				break;
-			case sf::Keyboard::Key::Left:
-				if(button_to_press==3) success();
-				else fail();
-				break;
-			default:
-				break;
-		}
-	}
-	else fail();
-}
-
-void QTE::success()
-{
-	press=false;
-	times--;
-	if(times<=0)
-	{
-		state=SUCCESS;
-		end();
-	}
-	else
-	{
-		buttons_colored.at(button_to_press)->hide();
-		button_to_press=rand()%4;
-		show_time=rand()%3+2;
-		timer=0.0f;
-	}
-}
-
-void QTE::fail()
-{
-	press=false;
-	state=FAILED;
-	end();
-}
-
-void QTE::end()
-{
-	for(Button* button:buttons_black) button->hide();
-	for(Button* button:buttons_colored) button->hide();
-	timer=0.0f;
-}
-
-
 // GAME //
 class Game
 {
 	public:
 		enum GameState
 		{
+			START,
 			WAITING,
 			REELING,
 			CATCHING,
@@ -186,7 +42,7 @@ class Game
 		std::vector<Fish*> fish;
 		Fish* current_fish=nullptr;
 
-		GameState state=WAITING;
+		GameState state=START;
 		sf::Clock clock;
 
 		float timer=0.0f;
@@ -195,12 +51,15 @@ class Game
 
 		int points=0;
 		int next_points=0;
+
+		const sf::Font font;
+		sf::Text text;
 	public:
 		Game(float width, float height);
 		void update();
 		void render(sf::RenderWindow& window);
 		// handles
-		void handle(const sf::Event::Resized& resized);
+		void handle(const sf::Event::Resized& resized, sf::RenderWindow& window);
 		void handle(const sf::Event::MouseButtonPressed& mouse_pressed);
 		void handle(const sf::Event::KeyPressed& key_pressed);
 	private:
@@ -209,10 +68,13 @@ class Game
 };
 
 Game::Game(float width, float height):
-	shaders(Shaders("Tappa10/shader.vert", "Tappa10/shader.frag")), camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), width, height), scene(shaders, camera), qte(scene)
+	shaders(Shaders("Tappa10/shader.vert", "Tappa10/shader.frag")), camera(glm::vec3(0.0f, 0.4f, -2.4f), glm::vec3(5.0f, 0.0f, 0.0f), width, height), scene(shaders, camera), qte(scene), font("resources/PixelifySans-Regular.ttf"), text(font, "")
 {
 	srand(time(0));
 	loadScene();
+
+	text.setFillColor(sf::Color(167, 160, 72, 255));
+	text.setScale({1.2f, 1.2f});
 }
 
 void Game::update()
@@ -222,6 +84,9 @@ void Game::update()
 
 	switch(state)
 	{
+		case START:
+
+			break;
 		case WAITING:
 			if(bait_time<=0.0f)
 			{
@@ -286,11 +151,19 @@ void Game::update()
 
 void Game::render(sf::RenderWindow& window)
 {
-	const sf::Font font("resources/PixelifySans-Regular.ttf");
-	sf::Text text(font, "Points: "+std::to_string(points));
-	text.setFillColor(sf::Color(167, 160, 72, 255));
-	text.setPosition({10.0f, 10.0f});
-
+	if(state==START)
+	{
+		text.setString("This is a fishing minigame.\nWait for a fish to take the bait.\nWhen the rod starts to shake\npress the correct keys to catch it");
+		sf::FloatRect textRect=text.getLocalBounds();
+		text.setOrigin(textRect.getCenter());
+		text.setPosition(window.getView().getCenter());
+	}
+	else
+	{
+		text.setString("Points: "+std::to_string(points));
+		text.setOrigin({0.0f, 0.0f});
+		text.setPosition({10.0f, 10.0f});
+	}
 	scene.draw(shaders);
 	window.pushGLStates();
 	window.draw(text);
@@ -364,14 +237,16 @@ int Game::selectFish()
 	return next_points;
 }
 
-void Game::handle(const sf::Event::Resized& resized)
+void Game::handle(const sf::Event::Resized& resized, sf::RenderWindow& window)
 {
+	window.setView(sf::View(sf::FloatRect({0.0f, 0.0f}, {(float)resized.size.x, (float)resized.size.y})));
 	glViewport(0, 0, resized.size.x, resized.size.y);
 	camera.updateProjection(resized.size.x, resized.size.y);
 }
 
 void Game::handle(const sf::Event::MouseButtonPressed& mouse_pressed)
 {
+	if(state==START) state=WAITING;
 	if(state==CAUGHT)
 	{
 		current_fish->hide();
@@ -383,6 +258,7 @@ void Game::handle(const sf::Event::MouseButtonPressed& mouse_pressed)
 
 void Game::handle(const sf::Event::KeyPressed& key_pressed)
 {
+	if(state==START) state=WAITING;
 	if(qte.getState()==qte.RUNNING) qte.handle(key_pressed);
 	if(state==CAUGHT)
 	{
@@ -410,7 +286,7 @@ int main()
 		while(const std::optional event=window.pollEvent())
 		{
 			if(event->is<sf::Event::Closed>()) window.close();
-			else if(const auto* resized=event->getIf<sf::Event::Resized>()) game.handle(*resized);
+			else if(const auto* resized=event->getIf<sf::Event::Resized>()) game.handle(*resized, window);
 			else if(const auto* mouse_pressed=event->getIf<sf::Event::MouseButtonPressed>()) game.handle(*mouse_pressed);
 			else if(const auto* key_pressed=event->getIf<sf::Event::KeyPressed>()) game.handle(*key_pressed);
 		}

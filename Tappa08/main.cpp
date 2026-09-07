@@ -127,18 +127,22 @@ void QTE::handle(const sf::Event::KeyPressed& key_pressed)
 		switch(key_pressed.code)
 		{
 			case sf::Keyboard::Key::Up:
+			case sf::Keyboard::Key::W:
 				if(button_to_press==0) success();
 				else fail();
 				break;
 			case sf::Keyboard::Key::Right:
+			case sf::Keyboard::Key::D:
 				if(button_to_press==1) success();
 				else fail();
 				break;
 			case sf::Keyboard::Key::Down:
+			case sf::Keyboard::Key::S:
 				if(button_to_press==2) success();
 				else fail();
 				break;
 			case sf::Keyboard::Key::Left:
+			case sf::Keyboard::Key::A:
 				if(button_to_press==3) success();
 				else fail();
 				break;
