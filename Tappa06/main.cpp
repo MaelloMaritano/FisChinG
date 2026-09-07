@@ -34,9 +34,6 @@ class Fish:public Entity
 		Fish(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement);
 		void update(float delta_time) override;
 		void draw() const override;
-		void testShow() {show();} // just for testing versions
-		void testHide() {hide();} // just for testing versions
-	private:
 		void show() {visible=true;}
 		void hide() {visible=false; progress=0.0f;}
 };
@@ -320,13 +317,13 @@ int main()
 		{
 			rod->testState(rod->LIFTING);
 			camera.testState(camera.BACKING);
-			fish->testShow();
+			fish->show();
 		}
 		else if(timer>15)
 		{
 			rod->testState(rod->LOWERING);
 			camera.testState(camera.ADVANCING);
-			fish->testHide();
+			fish->hide();
 		}
 		if(timer>16) timer=0.0f;
 

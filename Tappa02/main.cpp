@@ -99,7 +99,7 @@ void Scene::draw(Shaders& shaders)
 	glUseProgram(shaders.program);
 	glEnable(GL_DEPTH_TEST);
 	
-	for(auto& entity : entities)
+	for(auto& entity:entities)
 	{
 		glUniformMatrix4fv(transform_loc, 1, GL_FALSE, glm::value_ptr(entity->getTransform()));
 		entity->draw();

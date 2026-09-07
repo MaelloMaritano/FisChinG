@@ -82,9 +82,9 @@ void Game::update()
 			break;
 		case REELING:
 			// minigame
+			// in handle(mouse_pressed) lifting rod and backing camera
 			break;
 		case CATCHING:
-			// in handle(mouse_pressed) lifting rod and backing camera
 			if(rod->getState()==rod->LIFTED && camera.getState()==camera.BACK)
 			{
 				fish->show();

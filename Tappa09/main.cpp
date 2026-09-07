@@ -16,26 +16,6 @@
 #include <memory>
 
 
-// ENTITIES //
-class Button:public Entity
-{
-	private:
-		bool visible=false;
-	public:
-		Button(const Model* model, glm::vec3 position, glm::vec3 rotation, bool movement):
-			Entity(model, position, rotation, movement) {}
-		void update(float delta_time) {}
-		void draw() const override;
-		void show() {visible=true;}
-		void hide() {visible=false;}
-};
-
-void Button::draw() const
-{
-	if(visible) model->draw();
-}
-
-
 // MINIGAME //
 class QTE
 {
