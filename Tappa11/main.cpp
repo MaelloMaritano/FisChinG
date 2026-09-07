@@ -12,6 +12,7 @@
 #include "include/qte.hh"
 
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 
 #include <iostream>
 #include <cstdlib>
@@ -278,6 +279,9 @@ int main()
 	sf::RenderWindow& window=*setup.window;
 
 	Game game(window.getSize().x, window.getSize().y);
+
+	sf::Music ambiance_sound("ambiance.mp3");
+	ambiance_sound.play();
 
 	// main loop
 	while(window.isOpen())
