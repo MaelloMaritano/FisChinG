@@ -69,3 +69,6 @@ target_link_libraries(Tappa09 PRIVATE common SFML::Window SFML::Graphics OpenGL:
 
 add_executable(Tappa10 Tappa10/main.cpp)
 target_link_libraries(Tappa10 PRIVATE common SFML::Window SFML::Graphics OpenGL::GL glm::glm-header-only)
+
+add_executable(Tappa11 Tappa11/main.cpp)
+target_link_libraries(Tappa11 PRIVATE common SFML::Window SFML::Graphics OpenGL::GL glm::glm-header-only)
