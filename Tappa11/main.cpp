@@ -55,6 +55,10 @@ class Game
 
 		const sf::Font font;
 		sf::Text text;
+
+		sf::Music ambiance_sound;
+		sf::Music shaking_sound;
+		sf::Music success_sound;
 	public:
 		Game(float width, float height);
 		void update();
@@ -76,6 +80,14 @@ Game::Game(float width, float height):
 
 	text.setFillColor(sf::Color(167, 160, 72, 255));
 	text.setScale({1.2f, 1.2f});
+
+	if(!ambiance_sound.openFromFile("resources/ambiance.mp3") || !shaking_sound.openFromFile("resources/shaking.mp3") || !success_sound.openFromFile("resources/success.mp3"))
+	{
+		std::cerr<<"Failure: could not open sounds file."<<std::endl;
+		exit(1);
+	}
+	ambiance_sound.setLooping(true);
+	shaking_sound.setLooping(true);
 }
 
 void Game::update()
@@ -86,7 +98,7 @@ void Game::update()
 	switch(state)
 	{
 		case START:
-
+			ambiance_sound.play();
 			break;
 		case WAITING:
 			if(bait_time<=0.0f)
@@ -103,6 +115,7 @@ void Game::update()
 			}
 			break;
 		case REELING:
+			shaking_sound.play();
 			switch(qte.getState())
 			{
 				case qte.SLEEPING:
@@ -125,6 +138,8 @@ void Game::update()
 			}
 			break;
 		case CATCHING:
+			shaking_sound.stop();
+			success_sound.play();
 			if(rod->getState()==rod->LIFTED && camera.getState()==camera.BACK)
 			{
 				points+=next_points;
@@ -136,6 +151,8 @@ void Game::update()
 			// if click rod go down
 			break;
 		case RESET:
+			shaking_sound.stop();
+			success_sound.stop();
 			// in handle(mouse_pressed) lowering rod and advancing camera
 			if(rod->getState()==rod->LOWERED && camera.getState()==camera.FORWARD)
 			{
@@ -279,9 +296,6 @@ int main()
 	sf::RenderWindow& window=*setup.window;
 
 	Game game(window.getSize().x, window.getSize().y);
-
-	sf::Music ambiance_sound("ambiance.mp3");
-	ambiance_sound.play();
 
 	// main loop
 	while(window.isOpen())
