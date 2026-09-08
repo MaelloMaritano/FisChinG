@@ -269,7 +269,7 @@ void loadScene(Scene& scene)
 	scene.addEntity<Entity>("water", glm::vec3(0.0f), glm::vec3(0.0f), true);
 
 	scene.addModel("rod", "resources/rod.obj", "resources/rod.png");
-	scene.addModel("fish", "resources/fish_smol.obj", "resources/fish.png");
+	scene.addModel("fish", "resources/fish.obj", "resources/fish.png");
 }
 
 int main()
