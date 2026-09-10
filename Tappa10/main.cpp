@@ -209,27 +209,27 @@ void Game::loadScene()
 int Game::selectFish()
 {
 	int n=rand()%13;
-	if(n<=4)
+	if(n<=3)
 	{
 		current_fish=fish.at(0);
 		next_points=3;
 	}
-	else if(n>=5 && n<=8)
+	else if(n>=4 && n<=7)
 	{
 		current_fish=fish.at(1);
 		next_points=3;
 	}
-	else if(n>=9 && n<=10)
+	else if(n>=8 && n<=9)
 	{
 		current_fish=fish.at(2);
 		next_points=5;
 	}
-	else if(n>=11 && n<=12)
+	else if(n>=10 && n<=11)
 	{
 		current_fish=fish.at(3);
 		next_points=5;
 	}
-	else if(n==13)
+	else if(n==12)
 	{
 		current_fish=fish.at(4);
 		next_points=8;

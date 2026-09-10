@@ -170,7 +170,6 @@ void Model::loadTexture(const std::string& path)
 
 	sf::Vector2u size=image.getSize();
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.getPixelsPtr());
-	glGenerateMipmap(GL_TEXTURE_2D);
 }
 
 void Model::draw() const
